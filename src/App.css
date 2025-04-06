@@ -1,0 +1,22 @@
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: auto; /* ✅ Allow full-page scrolling */
+}
+
+#app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* ✅ Expand to fit content */
+}
+
+.team-page-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  max-width: 800px;
+  margin: auto;
+}

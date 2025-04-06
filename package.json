@@ -1,0 +1,42 @@
+{
+  "name": "elevation_manager",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@fluentui/react": "^8.122.14",
+    "@mui/icons-material": "^7.0.1",
+    "@mui/material": "^7.0.1",
+    "@mui/x-data-grid": "^7.28.2",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-log": "^2.3.1",
+    "@tauri-apps/plugin-opener": "^2",
+    "cesium": "^1.127.0",
+    "graphiql": "^3.8.3",
+    "graphql": "^16.10.0",
+    "ol": "^10.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.4.0",
+    "tauri-plugin-log-api": "github:tauri-apps/tauri-plugin-log"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.69.0",
+    "@tauri-apps/cli": "^2",
+    "@types/graphql": "^14.5.0",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@types/react-router-dom": "^5.3.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3"
+  }
+}

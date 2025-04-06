@@ -1,0 +1,70 @@
+/* Sidebar Container */
+.sidebar {
+    height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  
+  /* Sidebar Drawer */
+  .sidebar .MuiDrawer-paper {
+    transition: width 0.3s ease;
+    background-color: #1e1e1e;
+    color: white;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Sidebar Header */
+  .sidebar-toggle {
+    justify-content: center;
+    padding: 8px;
+  }
+  
+  /* Sidebar Links */
+  .sidebar-link {
+    justify-content: flex-start;
+  }
+  
+  .sidebar-link-collapsed {
+    justify-content: center;
+  }
+  
+  .sidebar-link-selected {
+    background-color: rgba(33, 150, 243, 0.2);
+    color: #2196f3;
+  }
+  
+  .sidebar-link:hover {
+    background-color: rgba(33, 150, 243, 0.2);
+  }
+  
+  /* Sidebar Icons */
+  .sidebar-icon {
+    color: #2196f3 !important;
+    min-width: 40px;
+  }
+  
+  .sidebar-icon-collapsed {
+    min-width: auto;
+  }
+  
+  /* Admin Section */
+  .admin-toggle {
+    cursor: pointer;
+    font-weight: bold;
+    color: white;
+  }
+  
+  .admin-expand {
+    padding-left: 24px;
+  }
+  
+  /* Logout Button */
+  .sidebar-logout {
+    margin-top: auto;
+  }
+  
+  .sidebar-logout:hover {
+    background-color: rgba(33, 150, 243, 0.2);
+  }
+  

@@ -1,0 +1,37 @@
+/* Restrict background to only the login page */
+.login-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: url("../assets/topo_background.jpg") no-repeat center center fixed;
+  background-size: cover;
+}
+
+/* Style the login box */
+.login-box {
+  width: 350px;
+  padding: 24px;
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  text-align: center;
+}
+
+/* Style the heading */
+.login-box h2 {
+  color: #333;
+}
+
+/* Ensure buttons take full width */
+.login-box button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+/* Adjust input field margins */
+.login-box .MuiTextField-root {
+  margin-bottom: 16px;
+}
