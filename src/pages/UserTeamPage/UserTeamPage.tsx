@@ -69,7 +69,7 @@ const UserTeamPage = () => {
   const requestTeam = useMutation({
     mutationFn: async () => {
       if (!selectedTeam || typeof selectedTeam !== "number") throw new Error("No team selected");
-      return await invoke("request_team_access", {
+      return await invoke("request_team_join", {
         team_id: selectedTeam,
         role: selectedRole,
         justification,

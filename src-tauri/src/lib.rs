@@ -8,15 +8,17 @@ use commands::team::*;
 use commands::admin::*;
 use commands::products::*;
 use commands::users::*;
+use commands::userteams::*;
 use log::info;
 use tauri::State;
 use tokio::sync::Mutex;
 use tauri_plugin_log::{Target, TargetKind};
-
+use tauri_plugin_notification;
 #[tokio::main]
 pub async fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .manage(AuthState {
             token: Mutex::new(None),
         })
@@ -50,6 +52,7 @@ pub async fn run() {
             delete_user,
             lock_user,
             get_user_teams,
+            request_team_join,
         ])
         .setup(|_app| {
             log::info!("Tauri app initialized successfully!");
