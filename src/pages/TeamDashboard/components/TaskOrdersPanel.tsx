@@ -16,7 +16,7 @@ import {
   Chip,
   CircularProgress,
 } from '@mui/material';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import { DataGrid, GridColDef, GridToolbarQuickFilter, GridToolbarContainer } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { format } from 'date-fns';
@@ -49,7 +49,7 @@ const TaskOrdersPanel: React.FC<TaskOrdersPanelProps> = ({ teamId, isTeamLead })
   const fetchTaskOrders = async () => {
     setLoading(true);
     try {
-      const response = await invoke<string>('get_team_tasks', { teamId });
+      const response = await invoke<string>('get_team_tasks', { team_id: teamId });
       const data = JSON.parse(response);
       if (data.data && data.data.task_orders) {
         setTaskOrders(data.data.task_orders);
@@ -73,7 +73,9 @@ const TaskOrdersPanel: React.FC<TaskOrdersPanelProps> = ({ teamId, isTeamLead })
       field: 'producer', 
       headerName: 'Producer', 
       flex: 1,
-      valueGetter: (params) => params.value || 'Not specified'
+      valueGetter: (value, row: TaskOrder ) => {
+        return row.producer || 'N/A';
+      }
     },
     { 
       field: 'status', 
@@ -128,8 +130,8 @@ const TaskOrdersPanel: React.FC<TaskOrdersPanelProps> = ({ teamId, isTeamLead })
     setLoading(true);
     try {
       await invoke('assign_task_order_to_team', {
-        teamId,
-        taskName: taskName.trim(),
+        team_id: teamId,
+        task_name: taskName.trim(),
       });
       
       fetchTaskOrders();
@@ -157,8 +159,8 @@ const TaskOrdersPanel: React.FC<TaskOrdersPanelProps> = ({ teamId, isTeamLead })
     setLoading(true);
     try {
       await invoke('remove_task_order_from_team', {
-        teamId,
-        taskId: selectedTaskId,
+        team_id: teamId,
+        task_id: selectedTaskId,
       });
       
       setTaskOrders(taskOrders.filter(t => t.id !== selectedTaskId));
@@ -179,6 +181,12 @@ const TaskOrdersPanel: React.FC<TaskOrdersPanelProps> = ({ teamId, isTeamLead })
       setLoading(false);
     }
   };
+
+  const CustomToolbar = () => (
+    <GridToolbarContainer>
+      <GridToolbarQuickFilter />
+    </GridToolbarContainer>
+  );
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -202,8 +210,9 @@ const TaskOrdersPanel: React.FC<TaskOrdersPanelProps> = ({ teamId, isTeamLead })
           columns={columns}
           loading={loading}
           pagination
-          disableSelectionOnClick
+          disableRowSelectionOnClick
           autoHeight
+          slots={{ toolbar: CustomToolbar }}
         />
       </Box>
 

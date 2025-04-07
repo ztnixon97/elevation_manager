@@ -19,7 +19,7 @@ import {
   Alert,
   Chip,
 } from '@mui/material';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import { DataGrid, GridColDef, GridToolbarQuickFilter, GridToolbarContainer } from '@mui/x-data-grid';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -137,13 +137,13 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
     setLoading(true);
     try {
       await invoke('add_user_to_team', {
-        teamId,
+        team_id: teamId,
         userId: selectedUser,
         role: selectedRole,
       });
       
       // Refresh member list
-      const response = await invoke<string>('get_team_users', { teamId });
+      const response = await invoke<string>('get_team_users', { team_id: teamId });
       const data = JSON.parse(response);
       if (data.data && data.data.members) {
         members = data.data.members;
@@ -178,7 +178,7 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
       });
       
       // Refresh member list
-      const response = await invoke<string>('get_team_users', { teamId });
+      const response = await invoke<string>('get_team_users', { team_id: teamId });
       const data = JSON.parse(response);
       if (data.data && data.data.members) {
         members = data.data.members;
@@ -207,12 +207,12 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
     setLoading(true);
     try {
       await invoke('remove_user_from_team', {
-        teamId,
-        userId: selectedMember.user_id,
+        team_id: teamId,
+        user_id: selectedMember.user_id,
       });
       
       // Refresh member list
-      const response = await invoke<string>('get_team_users', { teamId });
+      const response = await invoke<string>('get_team_users', { team_id: teamId });
       const data = JSON.parse(response);
       if (data.data && data.data.members) {
         members = data.data.members;
@@ -233,6 +233,12 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
       setLoading(false);
     }
   };
+
+  const CustomToolbar = () => (
+    <GridToolbarContainer>
+      <GridToolbarQuickFilter />
+    </GridToolbarContainer>
+  );
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -258,6 +264,7 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
           pagination
           disableSelectionOnClick
           autoHeight
+          slots={{ toolbar: CustomToolbar }}
         />
       </Box>
 

@@ -55,7 +55,7 @@ const TeamMap: React.FC<TeamMapProps> = ({ teamId }) => {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const response = await invoke<string>('get_team_products', { teamId });
+        const response = await invoke<string>('get_team_products', { team_id:  teamId });
         const data = JSON.parse(response);
         if (data.data && data.data.products) {
           setProducts(data.data.products);
@@ -169,7 +169,7 @@ const TeamMap: React.FC<TeamMapProps> = ({ teamId }) => {
   };
 
   return (
-    <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
+    <Box sx={{ width: '100%', height: '50vh', position: 'relative' }}>
       {loading && (
         <Box sx={{ 
           position: 'absolute', 

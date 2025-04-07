@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -25,6 +26,7 @@ type Team = {
 type RoleOption = "member" | "team_lead" | "viewer";
 
 const UserTeamPage = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [paginationModel, setPaginationModel] = useState({ pageSize: 10, page: 0 });
   const [message, setMessage] = useState<{ text: string; severity: "success" | "error" } | null>(null);
@@ -94,9 +96,34 @@ const UserTeamPage = () => {
     await refetchAllTeams();
   };
 
+  // Add navigation handler
+  const handleTeamClick = (teamId: number) => {
+    navigate(`/teams/${teamId}`);
+  };
+
   const columns: GridColDef[] = [
     { field: "id", headerName: "ID", width: 80 },
-    { field: "name", headerName: "Team Name", flex: 1 },
+    { 
+      field: "name", 
+      headerName: "Team Name", 
+      flex: 1,
+      renderCell: (params) => (
+        <Box 
+          sx={{ 
+            cursor: 'pointer', 
+            color: 'primary.main',
+            textDecoration: 'underline',
+            '&:hover': { 
+              color: 'primary.dark',
+              textDecoration: 'underline' 
+            }
+          }}
+          onClick={() => handleTeamClick(params.row.id)}
+        >
+          {params.value}
+        </Box>
+      ) 
+    },
   ];
 
   const CustomToolbar = () => (
@@ -135,8 +162,13 @@ const UserTeamPage = () => {
             onPaginationModelChange={setPaginationModel}
             autoHeight
             disableRowSelectionOnClick
-            hideFooterSelectedRowCount
             slots={{ toolbar: CustomToolbar }}
+            sx={{
+              cursor: 'pointer',
+              '& .MuiDataGrid-row:hover': {
+                backgroundColor: 'action.hover',
+              },
+            }}
           />
         )}
       </Box>

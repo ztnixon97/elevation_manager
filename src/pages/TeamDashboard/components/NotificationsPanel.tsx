@@ -61,7 +61,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ teamId, isTeamL
     setLoading(true);
     try {
       // This would be your actual implementation
-      const response = await invoke<string>('get_team_notifications', { teamId });
+      const response = await invoke<string>('get_team_notifications', { team_id: teamId });
       const data = JSON.parse(response);
       if (data.data) {
         setNotifications(data.data);
@@ -95,7 +95,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ teamId, isTeamL
     try {
       // This would be your actual implementation
       await invoke('send_team_notification', {
-        teamId,
+        team_id: teamId,
         title: notificationTitle.trim(),
         body: notificationBody.trim(),
         type: notificationType,

@@ -59,7 +59,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ teamId, isTeamLead }) => {
     setLoading(true);
     try {
       // Fetch team reviews
-      const response = await invoke<string>('get_team_reviews', { teamId });
+      const response = await invoke<string>('get_team_reviews', { team_id: teamId });
       const data = JSON.parse(response);
       
       if (data.data && Array.isArray(data.data)) {
@@ -73,7 +73,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ teamId, isTeamLead }) => {
               const reviewerName = userData.data?.username || 'Unknown';
               
               // Get product name
-              const productResponse = await invoke<string>('get_product', { productId: review.product_id });
+              const productResponse = await invoke<string>('get_product', { product_id: review.product_id });
               const productData = JSON.parse(productResponse);
               const productName = productData.data?.product?.site_id || 'Unknown';
               
@@ -113,13 +113,13 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ teamId, isTeamLead }) => {
       field: 'product_name', 
       headerName: 'Product', 
       flex: 1,
-      valueGetter: (params) => params.row.product_name || `Product #${params.row.product_id}`,
+      valueGetter: (params :{ row: Review} ) => params.row.product_name || `Product #${params.row.product_id}`,
     },
     { 
       field: 'reviewer_name', 
       headerName: 'Reviewer', 
       flex: 1,
-      valueGetter: (params) => params.row.reviewer_name || `User #${params.row.reviewer_id}`,
+      valueGetter: (params: { row: Review}) => params.row.reviewer_name || `User #${params.row.reviewer_id}`,
     },
     { 
       field: 'review_status', 
@@ -141,8 +141,8 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ teamId, isTeamLead }) => {
       field: 'created_at', 
       headerName: 'Submitted', 
       flex: 1,
-      valueFormatter: (params) => {
-        return format(new Date(params.value as string), 'MMM d, yyyy');
+      valueFormatter: (params: {row: Review}) => {
+        return format(new Date(params.row.created_at as string), 'MMM d, yyyy');
       }
     },
     {
@@ -191,7 +191,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ teamId, isTeamLead }) => {
     
     try {
       // Fetch review content
-      const response = await invoke<string>('get_review', { reviewId: review.id });
+      const response = await invoke<string>('get_review', { review_id: review.id });
       const data = JSON.parse(response);
       
       if (data.data && data.data.content) {
@@ -230,7 +230,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ teamId, isTeamLead }) => {
     setLoading(true);
     try {
       // Approve the review
-      await invoke('approve_review', { reviewId: selectedReview.id });
+      await invoke('approve_review', { review_id: selectedReview.id });
       
       // Update local state
       setReviews(reviews.map(r => 
@@ -261,7 +261,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ teamId, isTeamLead }) => {
     setLoading(true);
     try {
       // Reject the review
-      await invoke('reject_review', { reviewId: selectedReview.id });
+      await invoke('reject_review', { review_id: selectedReview.id });
       
       // Update local state
       setReviews(reviews.map(r => 
@@ -301,7 +301,7 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ teamId, isTeamLead }) => {
           columns={columns}
           loading={loading}
           pagination
-          disableSelectionOnClick
+          disableRowSelectionOnClick
           autoHeight
         />
       </Box>

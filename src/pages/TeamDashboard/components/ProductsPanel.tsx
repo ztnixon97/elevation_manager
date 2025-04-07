@@ -19,9 +19,15 @@ import {
   Alert,
   Chip,
   Tooltip,
-  CircularProgress,
+  Grid as MuiGrid,
 } from '@mui/material';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  GridColDef,
+  GridToolbarQuickFilter,
+  GridToolbarContainer,
+   // Add this import with alias
+} from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -75,7 +81,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
     setLoading(true);
     try {
       // Fetch team products
-      const productsResponse = await invoke<string>('get_team_products', { teamId });
+      const productsResponse = await invoke<string>('get_team_products', { team_id: teamId });
       const productsData = JSON.parse(productsResponse);
       if (productsData.data && productsData.data.products) {
         setProducts(productsData.data.products);
@@ -89,7 +95,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
       }
       
       // Fetch team members
-      const membersResponse = await invoke<string>('get_team_users', { teamId });
+      const membersResponse = await invoke<string>('get_team_users', {  team_id: teamId });
       const membersData = JSON.parse(membersResponse);
       if (membersData.data && membersData.data.members) {
         setTeamMembers(membersData.data.members);
@@ -112,9 +118,9 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
       field: 'product_type', 
       headerName: 'Type', 
       flex: 1,
-      valueGetter: (params) => {
-        const type = productTypes.find(t => t.id === params.row.product_type_id);
-        return type ? type.name : 'Unknown';
+      valueGetter: (value, row: Product) => {
+        const productType = productTypes.find(type => type.id === row.product_type_id);
+        return productType ? productType.name : 'N/A';
       }
     },
     { 
@@ -222,7 +228,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
       if (!isTeamLead || !window.confirm(`Are you sure you want to remove ${product.site_id}?`)) return;
       
       setLoading(true);
-      invoke('remove_product_from_team', { teamId, productId: product.id })
+      invoke('remove_product_from_team', { team_id: teamId, product_id: product.id })
         .then(() => {
           setProducts(products.filter(p => p.id !== product.id));
           setMessage({
@@ -248,14 +254,14 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
       try {
         // First add the product type if needed
         await invoke('assign_product_type_to_team', {
-          teamId,
-          productTypeId,
+          team_id: teamId,
+          product_type_id: productTypeId,
         });
         
         // Then add the product
         await invoke('assign_product_to_team', {
-          teamId,
-          siteId,
+          team_id: teamId,
+          site_id: siteId,
         });
         
         // Refresh products
@@ -287,8 +293,8 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
       try {
         // This would be your actual implementation
         await invoke('assign_product_to_user', {
-          productId: selectedProduct.id,
-          userId: assigneeId
+          product_id: selectedProduct.id,
+          user_id: assigneeId
         });
         
         // Update local state to reflect assignment
@@ -323,7 +329,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
       try {
         // This would be your actual implementation
         await invoke('checkout_product', {
-          productId: selectedProduct.id,
+          product_id: selectedProduct.id,
           reason: checkedOutReason
         });
         
@@ -358,7 +364,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
       try {
         // This would be your actual implementation
         await invoke('submit_product_review', {
-          productId: selectedProduct.id,
+          product_id: selectedProduct.id,
           comment: reviewComment
         });
         
@@ -384,6 +390,12 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
         setLoading(false);
       }
     };
+
+    const CustomToolbar = () => (
+      <GridToolbarContainer>
+        <GridToolbarQuickFilter />
+      </GridToolbarContainer>
+    );
   
     return (
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -402,14 +414,19 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
         </Box>
   
         <Box sx={{ flexGrow: 1 }}>
-          <DataGrid
-            rows={products}
-            columns={columns}
-            loading={loading}
-            pagination
-            disableSelectionOnClick
-            autoHeight
-          />
+          <MuiGrid container spacing={3}>
+            <MuiGrid>
+              <DataGrid
+                rows={products}
+                columns={columns}
+                loading={loading}
+                pagination
+                disableRowSelectionOnClick
+                autoHeight
+                slots={{ toolbar: CustomToolbar }}
+              />
+            </MuiGrid>
+          </MuiGrid>
         </Box>
   
         {/* Add Product Dialog */}
