@@ -20,6 +20,18 @@
     "@tauri-apps/plugin-log": "^2.3.1",
     "@tauri-apps/plugin-notification": "^2.2.2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tiptap/core": "^2.11.7",
+    "@tiptap/extension-image": "^2.11.7",
+    "@tiptap/extension-link": "^2.11.7",
+    "@tiptap/extension-placeholder": "^2.11.7",
+    "@tiptap/extension-table": "^2.11.7",
+    "@tiptap/extension-table-cell": "^2.11.7",
+    "@tiptap/extension-table-header": "^2.11.7",
+    "@tiptap/extension-table-row": "^2.11.7",
+    "@tiptap/pm": "^2.11.7",
+    "@tiptap/react": "^2.11.7",
+    "@tiptap/starter-kit": "^2.11.7",
+    "@types/node": "^22.14.0",
     "cesium": "^1.127.0",
     "date-fns": "^4.1.0",
     "graphiql": "^3.8.3",
@@ -28,7 +40,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.4.0",
-    "tauri-plugin-log-api": "github:tauri-apps/tauri-plugin-log"
+    "tauri-plugin-log-api": "github:tauri-apps/tauri-plugin-log",
+    "tiptap": "^1.32.2"
   },
   "devDependencies": {
     "@tanstack/react-query": "^5.69.0",

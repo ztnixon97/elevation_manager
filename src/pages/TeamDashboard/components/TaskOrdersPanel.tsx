@@ -14,12 +14,11 @@ import {
   Alert,
   IconButton,
   Chip,
-  CircularProgress,
 } from '@mui/material';
 import { DataGrid, GridColDef, GridToolbarQuickFilter, GridToolbarContainer } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { format } from 'date-fns';
+
 
 interface TaskOrdersPanelProps {
   teamId: number;
@@ -73,7 +72,7 @@ const TaskOrdersPanel: React.FC<TaskOrdersPanelProps> = ({ teamId, isTeamLead })
       field: 'producer', 
       headerName: 'Producer', 
       flex: 1,
-      valueGetter: (value, row: TaskOrder ) => {
+      valueGetter: (_, row: TaskOrder ) => {
         return row.producer || 'N/A';
       }
     },

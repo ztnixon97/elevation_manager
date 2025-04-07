@@ -23,9 +23,11 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.44.1", features = ["full"] }
-reqwest = { version = "0.12.15", features = ["json"] }
+reqwest = { version = "0.12.15", features = ["json", "multipart", "stream"] }
 log = "0.4.27"
 env_logger = "0.11.7"
 tauri-plugin-log = "2"
 tauri-plugin-notification = "2"
+base64 = "0.22.1"
+dirs = "6.0.0"
 

@@ -9,7 +9,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Select,
   MenuItem,
   FormControl,
@@ -262,7 +261,7 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
           columns={columns}
           loading={loading}
           pagination
-          disableSelectionOnClick
+          disableRowSelectionOnClick
           autoHeight
           slots={{ toolbar: CustomToolbar }}
         />
