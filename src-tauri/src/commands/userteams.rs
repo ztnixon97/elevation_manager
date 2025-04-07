@@ -1,8 +1,8 @@
 use crate::auth::login::AuthState;
 use crate::utils::get_auth_header;
 use reqwest::Client;
-use log::{error, info, debug};
-use serde_json::{Value, json};
+use log::{error, info};
+use serde_json::json;
 use tauri::State;
 
 #[tauri::command(rename_all="snake_case")]

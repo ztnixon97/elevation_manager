@@ -1,9 +1,7 @@
-use std::io::repeat;
-
 use crate::auth::login::AuthState;
 use log::{error, info, debug};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::State;
 use crate::utils::get_auth_header;
 /// API request structure for creating a team

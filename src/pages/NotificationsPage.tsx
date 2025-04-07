@@ -1,4 +1,4 @@
-// src/pages/NotificationsPage.tsx
+// src/pages/NotificationsPage.tsx - Updates to add refresh button
 import React, { useState } from 'react';
 import {
   Box,
@@ -18,12 +18,15 @@ import {
   InputLabel,
   CircularProgress,
   Container,
+  Button,
+  Tooltip,
 } from '@mui/material';
 import InfoIcon from '@mui/icons-material/Info';
 import WarningIcon from '@mui/icons-material/Warning';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ClearIcon from '@mui/icons-material/Clear';
+import RefreshIcon from '@mui/icons-material/Refresh'; // Add import for refresh icon
 import { useNotifications, NotificationWithTargets } from '../context/NotificationContext';
 import { format, isToday, isYesterday } from 'date-fns';
 
@@ -34,9 +37,22 @@ const NotificationsPage: React.FC = () => {
     error,
     dismissNotification,
     handleNotificationAction,
+    refreshNotifications, // Add the refresh function
   } = useNotifications();
 
   const [filter, setFilter] = useState<string>('all');
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  // Handle manual refresh with loading state
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshNotifications();
+    } finally {
+      // Delay resetting the refreshing state to give a better visual feedback
+      setTimeout(() => setRefreshing(false), 500);
+    }
+  };
 
   // Format notification date
   const formatDate = (dateString: string) => {
@@ -117,6 +133,19 @@ const NotificationsPage: React.FC = () => {
             sx={{ mr: 1 }}
           />
         </Box>
+        
+        {/* Refresh Button */}
+        <Tooltip title="Refresh notifications">
+          <span>
+            <IconButton 
+              onClick={handleRefresh} 
+              disabled={loading || refreshing}
+              color="primary"
+            >
+              {refreshing ? <CircularProgress size={24} /> : <RefreshIcon />}
+            </IconButton>
+          </span>
+        </Tooltip>
       </Box>
 
       <Paper elevation={2}>

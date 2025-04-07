@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use tokio::sync::Mutex;
 
-// 🔹 Store JWT Token
-#[derive(Default)]
+// 🔹 AuthState (modified)
+#[derive(Debug, Default, Clone)]
 pub struct AuthState {
-    pub token: Mutex<Option<String>>,
+    pub token: std::sync::Arc<Mutex<Option<String>>>,
 }
 
 // 🔹 Request & Response Structures
@@ -23,6 +23,7 @@ struct RegisterRequest {
     password: String,
     role: String,
 }
+
 #[derive(Deserialize)]
 struct AuthResponse {
     token: String,
@@ -64,8 +65,9 @@ pub async fn login(
         let body: AuthResponse = serde_json::from_str(&response_text)
             .map_err(|e| format!("❌ JSON parsing error: {e}"))?;
 
-        let mut token = state.token.lock().await;
-        *token = Some(body.token.clone());
+        // Lock the token and update it
+        let mut token_guard = state.token.lock().await;
+        *token_guard = Some(body.token.clone());
 
         info!("✅ Login successful! Token and role stored.");
         Ok((body.token, body.role))
@@ -79,9 +81,6 @@ pub async fn login(
         Err(error_message)
     }
 }
-
-
-
 
 // 🔹 Register Function
 #[tauri::command]
@@ -137,5 +136,3 @@ pub async fn register(
         Err(maybe_msg)
     }
 }
-
-

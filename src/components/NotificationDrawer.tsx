@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Drawer,
   Box,
@@ -13,6 +13,7 @@ import {
   ListItemIcon,
   ListItemButton,
   Alert,
+  Tooltip,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
@@ -21,6 +22,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import WarningIcon from '@mui/icons-material/Warning';
 import NewReleasesIcon from '@mui/icons-material/NewReleases';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import RefreshIcon from '@mui/icons-material/Refresh'; // Add import for refresh
 import { useNotifications, NotificationWithTargets } from '../context/NotificationContext';
 import { format, isToday, isYesterday } from 'date-fns';
 
@@ -37,7 +39,10 @@ const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ open, onClose }
     dismissNotification,
     dismissAllNotifications,
     handleNotificationAction,
+    refreshNotifications, // Add refresh function
   } = useNotifications();
+
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
   // Format notification date
   const formatDate = (dateString: string) => {
@@ -48,6 +53,17 @@ const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ open, onClose }
       return `Yesterday, ${format(date, 'h:mm a')}`;
     } else {
       return format(date, 'MMM d, yyyy');
+    }
+  };
+
+  // Handle manual refresh with loading state
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshNotifications();
+    } finally {
+      // Delay resetting the refreshing state to give a better visual feedback
+      setTimeout(() => setRefreshing(false), 500);
     }
   };
 
@@ -91,7 +107,17 @@ const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ open, onClose }
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: 1, borderColor: 'divider' }}>
           <Typography variant="h6">Notifications</Typography>
           <Box>
-            <IconButton title="Mark all as read" onClick={handleDismissAll} disabled={loading}>
+            {/* Add refresh button */}
+            <Tooltip title="Refresh notifications">
+              <IconButton 
+                onClick={handleRefresh} 
+                disabled={loading || refreshing}
+                size="small"
+              >
+                {refreshing ? <CircularProgress size={20} /> : <RefreshIcon />}
+              </IconButton>
+            </Tooltip>
+            <IconButton title="Mark all as read" onClick={handleDismissAll} disabled={loading || refreshing}>
               <DoneAllIcon />
             </IconButton>
             <IconButton onClick={onClose}>

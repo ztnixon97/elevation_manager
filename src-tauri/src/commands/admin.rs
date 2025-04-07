@@ -2,7 +2,6 @@ use crate::auth::login::AuthState;
 use crate::utils::get_auth_header;
 use reqwest::Client;
 use log::{error, info, debug};
-use serde_json::Value;
 use tauri::State;
 
 

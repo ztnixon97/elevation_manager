@@ -40,6 +40,7 @@ interface NotificationContextType {
   dismissNotification: (id: number) => Promise<void>;
   dismissAllNotifications: () => Promise<void>;
   handleNotificationAction: (notif: NotificationWithTargets) => void;
+  refreshNotifications: () => Promise<void>; // Manual refresh function
 }
 
 export const NotificationContext = createContext<NotificationContextType>({
@@ -51,6 +52,7 @@ export const NotificationContext = createContext<NotificationContextType>({
   dismissNotification: async () => {},
   dismissAllNotifications: async () => {},
   handleNotificationAction: () => {},
+  refreshNotifications: async () => {},
 });
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -59,6 +61,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated } = useContext(AuthContext);
+  const [pollingStarted, setPollingStarted] = useState<boolean>(false);
 
   // Fetch notifications from backend
   const fetchNotifications = async () => {
@@ -145,8 +148,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     switch (actionType) {
       case 'view_request':
         // Handle viewing approval request
-        // e.g., navigate to request details page with actionData.request_id
         console.log('Viewing request:', actionData);
+        // You could navigate to a request details page here
         break;
       case 'view_task_order':
         // Handle viewing task order
@@ -163,47 +166,87 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       default:
         console.log('Unknown action type:', actionType, actionData);
     }
+    
+    // Auto-dismiss if dismissible
+    if (notif.notification.dismissible && !notif.dismissed) {
+      dismissNotification(notif.notification.id);
+    }
   };
 
-  // Initial setup and event listeners
+  // Start backend polling when authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      // Initial fetch
-      fetchNotifications();
-      fetchNotificationCount();
+    if (isAuthenticated && !pollingStarted) {
+      // Initialize polling
+      invoke('start_notification_polling')
+        .then(() => {
+          console.log('Notification polling started');
+          setPollingStarted(true);
+        })
+        .catch(err => {
+          console.error('Failed to start notification polling:', err);
+        });
       
-      // Start background polling
-      invoke('start_notification_polling').catch(err => {
-        console.error('Failed to start notification polling:', err);
-      });
-      
-      // Listen for count updates
-      const unlisten1 = listen<number>('notification_count_updated', (event) => {
-        setUnreadCount(event.payload);
-      });
-      
-      // Listen for new notifications
-      const unlisten2 = listen<NotificationWithTargets>('new_notification', (event) => {
-        setNotifications(prev => [event.payload, ...prev]);
-      });
-      
-      // Cleanup
       return () => {
-        unlisten1.then(fn => fn());
-        unlisten2.then(fn => fn());
+        // Clean up polling on unmount or when auth state changes
+        if (pollingStarted) {
+          invoke('stop_notification_polling')
+            .then(() => console.log('Notification polling stopped'))
+            .catch(err => console.error('Failed to stop notification polling:', err));
+        }
       };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, pollingStarted]);
 
-  // Refresh notifications every minute
-  useEffect(() => {
-    if (isAuthenticated) {
-      const interval = setInterval(() => {
-        fetchNotificationCount();
-      }, 60000);
-      
-      return () => clearInterval(interval);
+  // Manual refresh function that calls backend refresh
+  const refreshNotifications = async () => {
+    if (!isAuthenticated) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      await invoke('manual_refresh_notifications');
+      // The events emitted from the backend will update our state
+    } catch (err) {
+      console.error('Error manually refreshing notifications:', err);
+      setError(typeof err === 'string' ? err : 'Failed to refresh notifications');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  // Set up event listeners for notification updates
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Listen for count updates
+    const unlistenCount = listen<number>('notification_count_updated', (event) => {
+      console.log('Notification count updated:', event.payload);
+      setUnreadCount(event.payload);
+    });
+    
+    // Listen for new notifications
+    const unlistenNew = listen<NotificationWithTargets>('new_notification', (event) => {
+      console.log('New notification received:', event.payload);
+      setNotifications(prev => [event.payload, ...prev]);
+    });
+    
+    // Listen for full refresh events
+    const unlistenRefresh = listen<NotificationWithTargets[]>('notifications_refreshed', (event) => {
+      console.log('Notifications refreshed:', event.payload);
+      setNotifications(event.payload);
+    });
+    
+    // Initial data fetch
+    fetchNotifications();
+    fetchNotificationCount();
+    
+    // Cleanup listeners
+    return () => {
+      unlistenCount.then(fn => fn());
+      unlistenNew.then(fn => fn());
+      unlistenRefresh.then(fn => fn());
+    };
   }, [isAuthenticated]);
 
   const contextValue: NotificationContextType = {
@@ -215,6 +258,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     dismissNotification,
     dismissAllNotifications,
     handleNotificationAction,
+    refreshNotifications,
   };
 
   return (

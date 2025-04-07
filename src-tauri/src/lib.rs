@@ -9,6 +9,7 @@ use commands::admin::*;
 use commands::products::*;
 use commands::users::*;
 use commands::userteams::*;
+use commands::notifications::*;
 use log::info;
 use tauri::State;
 use tokio::sync::Mutex;
@@ -19,9 +20,7 @@ pub async fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
-        .manage(AuthState {
-            token: Mutex::new(None),
-        })
+        .manage(AuthState::default())
         .invoke_handler(tauri::generate_handler![
             login,
             register,
@@ -53,6 +52,15 @@ pub async fn run() {
             lock_user,
             get_user_teams,
             request_team_join,
+            get_notification_count,
+            get_notifications,
+            dismiss_notification,
+            dismiss_all_notifications,
+            show_system_notification,
+            start_notification_polling,
+            stop_notification_polling,
+            manual_refresh_notifications,
+            
         ])
         .setup(|_app| {
             log::info!("Tauri app initialized successfully!");

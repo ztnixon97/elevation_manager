@@ -14,3 +14,12 @@ pub async fn get_auth_header(state: &State<'_, AuthState>) -> Result<String, Str
         Err("No valid authentication token found. Please log in.".to_string())
     }
 }
+
+pub async fn get_auth_header_internal(auth_state: &AuthState) -> Result<String, String> {
+    let token_guard = auth_state.token.lock().await;
+    if let Some(token) = &*token_guard {
+        Ok(format!("Bearer {token}"))
+    } else {
+        Err("No valid authentication token found. Please log in".to_string())
+    }
+}
