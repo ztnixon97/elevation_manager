@@ -16,6 +16,7 @@ import UserManagement from "./pages/UserManagement";
 import { GraphQLPlayground } from "./pages/GraphQLPlayground";
 import NotificationsPage from "./pages/NotificationsPage";
 import { invoke } from "@tauri-apps/api/core";
+import TeamDashboard from "./pages/TeamDashboard/TeamDashboard";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,7 @@ function AppLayout() {
           <Route path="/dev/graphql" element={isAuthenticated ? <GraphQLPlayground /> : <Login />} />
           <Route path="/teams" element={isAuthenticated ? <UserTeamPage /> : <Login />} />
           <Route path="/notifications" element={isAuthenticated ? <NotificationsPage /> : <Login />} />
+          <Route path="/teams/:teamId" element={isAuthenticated ? <TeamDashboard /> : <Login />} />
           {/* Redirect to login if not authenticated */}
         </Routes>
       </Box>
