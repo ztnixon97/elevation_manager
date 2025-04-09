@@ -13,6 +13,7 @@ use commands::notifications::*;
 use log::info;
 use tauri::State;
 use tokio::sync::Mutex;
+use std::sync::Arc;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification;
 #[tokio::main]
@@ -21,6 +22,7 @@ pub async fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .manage(AuthState::default())
+        .manage(Arc::new(commands::notifications::PollingState::default()))
         .invoke_handler(tauri::generate_handler![
             login,
             register,
@@ -60,6 +62,9 @@ pub async fn run() {
             start_notification_polling,
             stop_notification_polling,
             manual_refresh_notifications,
+            get_user_products,
+            checkout_product,
+            assign_product_to_user,
             
         ])
         .setup(|_app| {

@@ -1,7 +1,9 @@
-use crate::auth::login::AuthState;
+use std::iter::Product;
+
+use crate::{auth::{self, login::AuthState}, state};
 use log::{error, info, debug};
 use reqwest::Client;
-use tauri::State;
+use tauri::{http::status, State};
 use crate::utils::get_auth_header;
 
 
@@ -66,5 +68,141 @@ pub async fn get_all_product_types(state: State<'_, AuthState>) -> Result<String
     } else {
         error!("Failed to retrived produc types. Status: {:?}, Response: {}", status, response_text);
         Err(format!("Failed to retrieve product types: {:?}", response_text))
+    }
+}
+
+#[tauri::command(rename_all="snake_case")]
+pub async fn get_user_products(state: State<'_, AuthState>) -> Result<String, String> {
+    let client = Client::new();
+    let url = "http://localhost:3000/users/me/products".to_string();
+
+    let auth_header = get_auth_header(&state).await?;
+
+    info!("Fetching user assinged products...");
+
+    let response = client
+        .get(&url)
+        .header("Authorization", auth_header)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Request failed: {}", e);
+            format!("Request failed: {e}")
+        })?;
+
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        info!("Successfully retrieved user assigned products.");
+        debug!("Response: {}", response_text);
+        Ok(response_text)
+    } else {
+        error!("Failed to retrived user assigned products. Status: {:?}, Response: {}", status, response_text);
+        Err(format!("Failed to retrieve user assigned products: {:?}", response_text))
+        
+    }
+}
+
+
+
+#[tauri::command(rename_all="snake_case")]
+pub async fn checkout_product(
+    state: State<'_, AuthState>,
+    product_id: i32,
+    team_id: Option<i32>,
+    reason: String,
+) -> Result<String, String> {
+    let client = Client::new();
+    let url = "http://localhost:3000/product-assignments".to_string();
+    let auth_header = get_auth_header(&state).await?;
+    
+    info!("Checking out product {product_id}...");
+    
+    let checkout_payload = serde_json::json!({
+        "product_id": product_id,
+        "user_id": null, // Will be set from JWT claims
+        "team_id": team_id,
+        "assignment_type": "checked_out",
+        "status": "active",
+        "assigned_by": null, // Will be set from JWT claims
+        "due_date": null,
+        "reason": reason,
+    });
+    
+    let response = client
+        .post(&url)
+        .header("Authorization", auth_header)
+        .header("Content-Type", "application/json")
+        .json(&checkout_payload)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Request failed: {}", e);
+            format!("Request failed: {e}")
+        })?;
+        
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+    
+    if status.is_success() {
+        info!("Successfully checked out product.");
+        debug!("Response: {}", response_text);
+        Ok(response_text)
+    } else {
+        error!("Failed to checkout product. Status: {:?}, Response: {}", status, response_text);
+        Err(format!("Failed to checkout product: {:?}", response_text))
+    }
+}
+
+#[tauri::command(rename_all="snake_case")]
+pub async fn assign_product_to_user(
+    state: State<'_, AuthState>,
+    product_id: i32,
+    user_id: i32,
+    team_id: Option<i32>,
+    assignment_type: Option<String>,
+    due_date: Option<String>,
+    reason: Option<String>,
+) -> Result<String, String> {
+    let client = Client::new();
+    let url = "http://localhost:3000/product-assignments".to_string();
+    let auth_header = get_auth_header(&state).await?;
+    
+    info!("Assigning product {product_id} to user {user_id}...");
+    
+    let assignment_payload = serde_json::json!({
+        "product_id": product_id,
+        "user_id": user_id,
+        "team_id": team_id,
+        "assignment_type": assignment_type.unwrap_or_else(|| "assigned".to_string()),
+        "status": null, // The backend will default this to "active"
+        "assigned_by": null, // The backend will get this from the JWT claims
+        "due_date": due_date,
+        "reason": reason,
+    });
+    
+    let response = client
+        .post(&url)
+        .header("Authorization", auth_header)
+        .header("Content-Type", "application/json")
+        .json(&assignment_payload)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Request failed: {e}");
+            format!("Request failed: {e}")
+    })?;
+    
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+    
+    if status.is_success() {
+        info!("Successfully assigned product to user.");
+        debug!("Response: {response_text}");
+        Ok(response_text)
+    } else {
+        error!("Failed to assign product to user. Status: {:?}, Response: {}", status, response_text);
+        Err(format!("Failed to assign product to user: {:?}", response_text))
     }
 }
