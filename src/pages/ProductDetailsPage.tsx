@@ -264,10 +264,16 @@ const ProductDetailPage: React.FC = () => {
 
   const handleCreateReview = () => {
     if (!product) return;
-    navigate(`/reviews/${product.id}`);
+  
+    // Save product ID in localStorage to help with maintaining context
+    localStorage.setItem('current_review_product_id', product.id.toString());
+    localStorage.setItem('current_review_product_name', product.site_id);
+  
+    // Navigate to review creation page
+    navigate(`/reviews/create/${product.id}`);
   };
-
   const handleViewReview = (reviewId: number) => {
+    
     navigate(`/reviews/${reviewId}`);
   };
 

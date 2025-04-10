@@ -73,7 +73,19 @@ pub async fn run() {
             approve_team_request,
             reject_team_request,
             send_team_notification,
-            
+            save_review_draft,
+            load_review_draft,
+            convert_image_to_base64,
+            create_review,
+            get_review,
+            update_review,
+            get_product_reviews,
+            get_user_reviews,
+            upload_review_image,
+            get_review_images,
+            delete_review_image,
+            approve_review,
+            reject_review,           
         ])
         .setup(|_app| {
             log::info!("Tauri app initialized successfully!");

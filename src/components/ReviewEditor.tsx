@@ -18,19 +18,28 @@ import {
   FormControl,
   InputLabel,
   SelectChangeEvent,
-  AlertColor
+  AlertColor,
+  Divider,
 } from '@mui/material';
 import { invoke } from '@tauri-apps/api/core';
 import SaveIcon from '@mui/icons-material/Save';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
+import TableChartIcon from '@mui/icons-material/TableChart';
+import ImageIcon from '@mui/icons-material/Image';
+import LinkIcon from '@mui/icons-material/Link';
+import FormatBoldIcon from '@mui/icons-material/FormatBold';
+import FormatItalicIcon from '@mui/icons-material/FormatItalic';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
+import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered';
+import TitleIcon from '@mui/icons-material/Title';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { format } from 'date-fns';
 
 // TipTap imports
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import Table from '@tiptap/extension-table';
@@ -38,6 +47,8 @@ import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 
+// Custom extensions
+import { ResizableImage } from './ResizeableImageExtension'; 
 // Custom toolbar styles
 import './Tiptap.css';
 
@@ -106,7 +117,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
     if (!file) return;
 
     try {
-      // Call a Tauri command to handle file reading and conversion to base64
+      // Convert file to base64
       const reader = new FileReader();
       reader.onload = () => {
         const base64Image = reader.result as string;
@@ -118,7 +129,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Failed to convert image:', error);
-      // You can add error handling here
     }
     
     // Clear the input
@@ -134,41 +144,51 @@ const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
         variant={editor.isActive('bold') ? 'contained' : 'outlined'}
         size="small"
         sx={{ mr: 0.5 }}
+        title="Bold"
       >
-        Bold
+        <FormatBoldIcon fontSize="small" />
       </Button>
       <Button
         onClick={() => editor.chain().focus().toggleItalic().run()}
         variant={editor.isActive('italic') ? 'contained' : 'outlined'}
         size="small"
         sx={{ mr: 0.5 }}
+        title="Italic"
       >
-        Italic
+        <FormatItalicIcon fontSize="small" />
       </Button>
       <Button
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
         variant={editor.isActive('heading', { level: 2 }) ? 'contained' : 'outlined'}
         size="small"
         sx={{ mr: 0.5 }}
+        title="Heading"
       >
-        H2
+        <TitleIcon fontSize="small" />
       </Button>
+      
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+      
       <Button
         onClick={() => editor.chain().focus().toggleBulletList().run()}
         variant={editor.isActive('bulletList') ? 'contained' : 'outlined'}
         size="small"
         sx={{ mr: 0.5 }}
+        title="Bullet List"
       >
-        Bullet List
+        <FormatListBulletedIcon fontSize="small" />
       </Button>
       <Button
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
         variant={editor.isActive('orderedList') ? 'contained' : 'outlined'}
         size="small"
         sx={{ mr: 0.5 }}
+        title="Numbered List"
       >
-        Numbered List
+        <FormatListNumberedIcon fontSize="small" />
       </Button>
+      
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
       
       {/* Image upload button that triggers file input */}
       <input
@@ -182,10 +202,10 @@ const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
         onClick={() => fileInputRef.current?.click()}
         variant="outlined"
         size="small"
-        startIcon={<FileUploadIcon />}
         sx={{ mr: 0.5 }}
+        title="Upload Image"
       >
-        Upload Image
+        <FileUploadIcon fontSize="small" />
       </Button>
 
       {/* Image URL button */}
@@ -194,8 +214,9 @@ const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
         variant="outlined"
         size="small"
         sx={{ mr: 0.5 }}
+        title="Insert Image URL"
       >
-        Image URL
+        <ImageIcon fontSize="small" />
       </Button>
 
       {/* Add Link Button */}
@@ -209,9 +230,74 @@ const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
         variant={editor.isActive('link') ? 'contained' : 'outlined'}
         size="small"
         sx={{ mr: 0.5 }}
+        title="Insert Link"
       >
-        Link
+        <LinkIcon fontSize="small" />
       </Button>
+      
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+      
+      {/* Table buttons */}
+      <Button
+        onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3 }).run()}
+        variant="outlined"
+        size="small"
+        sx={{ mr: 0.5 }}
+        title="Insert Table"
+      >
+        <TableChartIcon fontSize="small" />
+      </Button>
+      
+      {editor.isActive('table') && (
+        <>
+          <Button
+            onClick={() => editor.chain().focus().addColumnBefore().run()}
+            variant="outlined"
+            size="small"
+            sx={{ mr: 0.5 }}
+            title="Add Column Before"
+          >
+            Col Before
+          </Button>
+          <Button
+            onClick={() => editor.chain().focus().addColumnAfter().run()}
+            variant="outlined"
+            size="small"
+            sx={{ mr: 0.5 }}
+            title="Add Column After"
+          >
+            Col After
+          </Button>
+          <Button
+            onClick={() => editor.chain().focus().addRowBefore().run()}
+            variant="outlined"
+            size="small"
+            sx={{ mr: 0.5 }}
+            title="Add Row Before"
+          >
+            Row Before
+          </Button>
+          <Button
+            onClick={() => editor.chain().focus().addRowAfter().run()}
+            variant="outlined"
+            size="small"
+            sx={{ mr: 0.5 }}
+            title="Add Row After"
+          >
+            Row After
+          </Button>
+          <Button
+            onClick={() => editor.chain().focus().deleteTable().run()}
+            variant="outlined"
+            color="error"
+            size="small"
+            sx={{ mr: 0.5 }}
+            title="Delete Table"
+          >
+            <DeleteIcon fontSize="small" />
+          </Button>
+        </>
+      )}
 
       {/* Image URL Dialog */}
       <Dialog open={isImageDialogOpen} onClose={() => setIsImageDialogOpen(false)}>
@@ -256,11 +342,26 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
   // Reference to auto-save timer
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Function to handle pasted images
+  const handlePastedImage = (image: File, editor: Editor) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        const base64Image = e.target.result.toString();
+        editor.chain().focus().setImage({ src: base64Image }).run();
+      }
+    };
+    reader.readAsDataURL(image);
+  };
+
   // Configure the TipTap editor
   const editor = useEditor({
     extensions: [
-      StarterKit,
-      Image,
+      StarterKit.configure({
+        // Exclude the default image extension
+        image: false,
+      }),
+      ResizableImage, // Use our custom resizable image extension
       Placeholder.configure({
         placeholder: 'Start writing your review here...',
       }),
@@ -284,6 +385,47 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
       autoSaveTimerRef.current = setTimeout(() => {
         saveDraftLocally(editor.getHTML());
       }, 3000); // Auto-save after 3 seconds of inactivity
+    },
+    // Add paste handler for images
+    editorProps: {
+      handlePaste: (view, event) => {
+        // Handle pasted images
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          
+          if (item.type.indexOf('image') === 0) {
+            event.preventDefault();
+            
+            const blob = item.getAsFile();
+            if (!blob) continue;
+            
+            // Use our helper function
+            handlePastedImage(blob, editor);
+            return true; // Handled this paste event
+          }
+        }
+        
+        return false; // Let default handler process other paste types
+      },
+      handleDrop: (view, event, slice, moved) => {
+        if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
+          const file = event.dataTransfer.files[0];
+          const fileType = file.type;
+          
+          // Handle image files
+          if (fileType.startsWith('image/')) {
+            event.preventDefault();
+            
+            // Handle dropped image
+            handlePastedImage(file, editor);
+            return true;
+          }
+        }
+        return false;
+      },
     },
   });
 
@@ -348,7 +490,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
     setLocalDraft(draft);
   };
 
-  // Function to load local draft
+// Function to load local draft
   const loadLocalDraft = () => {
     if (!localDraft || !editor) return;
     
@@ -527,6 +669,21 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
             <EditorContent editor={editor} />
           </Box>
         </Paper>
+        
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
+          <Typography variant="caption" color="text.secondary">
+            Tips:
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            • Paste or drag images directly into the editor
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            • Hover over an image to resize or align it
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            • Drag the corner handles to resize images
+          </Typography>
+        </Box>
         
         {lastSaved && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>

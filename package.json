@@ -41,7 +41,8 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.4.0",
     "tauri-plugin-log-api": "github:tauri-apps/tauri-plugin-log",
-    "tiptap": "^1.32.2"
+    "tiptap": "^1.32.2",
+    "tiptap-extension-resize-image": "^1.2.1"
   },
   "devDependencies": {
     "@tanstack/react-query": "^5.69.0",

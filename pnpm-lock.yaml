@@ -104,6 +104,9 @@ importers:
       tiptap:
         specifier: ^1.32.2
         version: 1.32.2(vue-template-compiler@2.7.16)(vue@2.7.16)
+      tiptap-extension-resize-image:
+        specifier: ^1.2.1
+        version: 1.2.1(@tiptap/core@2.11.7(@tiptap/pm@2.11.7))(@tiptap/extension-image@2.11.7(@tiptap/core@2.11.7(@tiptap/pm@2.11.7)))(@tiptap/pm@2.11.7)
     devDependencies:
       '@tanstack/react-query':
         specifier: ^5.69.0
@@ -2161,6 +2164,13 @@ packages:
 
   tiptap-commands@1.17.1:
     resolution: {integrity: sha512-CyGvMD/c6fNer5LThWGtrVMXHAqHn93ivGQpqJ58x3HNZFuoIiF9QTWXAiWbY/4QrG0ANYHKCSe9n5afickTqw==}
+
+  tiptap-extension-resize-image@1.2.1:
+    resolution: {integrity: sha512-SLMAujDa+0LN/6Iv2HtU4Uk0BL6LMh4b/r85frpdnjFDW2i6pIOfTVG8jzJQ8T1EgYHNn2YG1U2HoVAGuwLc3Q==}
+    peerDependencies:
+      '@tiptap/core': ^2.0.0
+      '@tiptap/extension-image': ^2.0.0
+      '@tiptap/pm': ^2.0.0
 
   tiptap-utils@1.13.1:
     resolution: {integrity: sha512-RoCvMfkdu7fp9u7nsRr1OgsYU8RFjoHKHEKpx075rJ9X0t+j5Vxah9n6QzTTr4yjvcavq22WO2flFacm36zYtA==}
@@ -4435,6 +4445,12 @@ snapshots:
       prosemirror-state: 1.4.3
       prosemirror-tables: 1.6.4
       tiptap-utils: 1.13.1
+
+  tiptap-extension-resize-image@1.2.1(@tiptap/core@2.11.7(@tiptap/pm@2.11.7))(@tiptap/extension-image@2.11.7(@tiptap/core@2.11.7(@tiptap/pm@2.11.7)))(@tiptap/pm@2.11.7):
+    dependencies:
+      '@tiptap/core': 2.11.7(@tiptap/pm@2.11.7)
+      '@tiptap/extension-image': 2.11.7(@tiptap/core@2.11.7(@tiptap/pm@2.11.7))
+      '@tiptap/pm': 2.11.7
 
   tiptap-utils@1.13.1:
     dependencies:

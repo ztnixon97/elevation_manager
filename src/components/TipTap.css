@@ -1,70 +1,232 @@
 /* src/components/Tiptap.css */
+.editor-menu {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 8px;
+  gap: 4px;
+}
+
 .ProseMirror {
-    min-height: 200px;
-    padding: 10px;
-    border-radius: 0 0 4px 4px;
-    outline: none;
-  }
-  
-  .ProseMirror p {
-    margin: 1em 0;
-  }
-  
-  .ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4, .ProseMirror h5, .ProseMirror h6 {
-    margin-top: 1.5em;
-    margin-bottom: 0.5em;
-  }
-  
-  .ProseMirror ul, .ProseMirror ol {
-    margin-left: 1.5em;
-    padding: 0;
-  }
-  
-  .ProseMirror img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 4px;
-  }
-  
-  .ProseMirror a {
-    color: #0074d9;
-    text-decoration: underline;
-  }
-  
-  .ProseMirror table {
-    border-collapse: collapse;
-    margin: 1em 0;
-    overflow: hidden;
-    table-layout: fixed;
-    width: 100%;
-  }
-  
-  .ProseMirror table td, 
-  .ProseMirror table th {
-    border: 1px solid #ddd;
-    box-sizing: border-box;
-    min-width: 1em;
-    padding: 8px;
-    position: relative;
-    vertical-align: top;
-  }
-  
-  .ProseMirror table th {
-    background-color: #f0f0f0;
-    font-weight: bold;
-  }
-  
-  /* Placeholder */
-  .ProseMirror p.is-editor-empty:first-child::before {
-    color: #adb5bd;
-    content: attr(data-placeholder);
-    float: left;
-    height: 0;
-    pointer-events: none;
-  }
-  
-  /* Editor focused state */
-  .ProseMirror:focus {
-    border-color: #0074d9;
-    box-shadow: 0 0 0 1px rgba(0, 116, 217, 0.2);
-  }
+  outline: none;
+  min-height: 300px;
+  padding: 10px;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: #adb5bd;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Basic image styles */
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Table styles */
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1rem 0;
+  overflow: hidden;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  border: 2px solid #ced4da;
+  box-sizing: border-box;
+  min-width: 1em;
+  padding: 0.5rem;
+  position: relative;
+  vertical-align: top;
+}
+
+.ProseMirror table th {
+  background-color: #f1f3f5;
+  font-weight: bold;
+  text-align: left;
+}
+
+.ProseMirror table .selectedCell:after {
+  background: rgba(200, 200, 255, 0.4);
+  content: "";
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.ProseMirror table .column-resize-handle {
+  background-color: #adf;
+  bottom: -2px;
+  position: absolute;
+  right: -2px;
+  pointer-events: none;
+  top: 0;
+  width: 4px;
+}
+
+.tableWrapper {
+  padding: 1rem 0;
+  overflow-x: auto;
+}
+
+.resize-cursor {
+  cursor: col-resize;
+}
+
+/* Resizable image container */
+.resizable-image-wrapper {
+  position: relative;
+  display: inline-block;
+  margin: 1em 0;
+}
+
+/* Alignment classes */
+.image-align-left {
+  float: left;
+  margin-right: 1em;
+}
+
+.image-align-center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  clear: both;
+}
+
+.image-align-right {
+  float: right;
+  margin-left: 1em;
+}
+
+/* Show resize handles and controls on hover or when active */
+.resizable-image-wrapper:hover .resize-handle,
+.resizable-image-wrapper.resize-active .resize-handle {
+  opacity: 1;
+}
+
+.resizable-image-wrapper:hover .alignment-controls,
+.resizable-image-wrapper.resize-active .alignment-controls {
+  opacity: 1;
+}
+
+/* Resize handles */
+.resize-handle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background-color: #ffffff;
+  border: 1px solid #4dabf7;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Resize handles for each corner and edge */
+.resize-handle-nw {
+  top: -4px;
+  left: -4px;
+  cursor: nw-resize;
+}
+
+.resize-handle-n {
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: n-resize;
+}
+
+.resize-handle-ne {
+  top: -4px;
+  right: -4px;
+  cursor: ne-resize;
+}
+
+.resize-handle-e {
+  top: 50%;
+  right: -4px;
+  transform: translateY(-50%);
+  cursor: e-resize;
+}
+
+.resize-handle-se {
+  bottom: -4px;
+  right: -4px;
+  cursor: se-resize;
+}
+
+.resize-handle-s {
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: s-resize;
+}
+
+.resize-handle-sw {
+  bottom: -4px;
+  left: -4px;
+  cursor: sw-resize;
+}
+
+.resize-handle-w {
+  top: 50%;
+  left: -4px;
+  transform: translateY(-50%);
+  cursor: w-resize;
+}
+
+/* Alignment controls */
+.alignment-controls {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: white;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  padding: 2px;
+  display: flex;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+.alignment-controls button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6c757d;
+}
+
+.alignment-controls button:hover {
+  background-color: #f8f9fa;
+  color: #4dabf7;
+}
+
+/* When resizing is active */
+.resize-active {
+  z-index: 100;
+}
+
+.resize-active img {
+  pointer-events: none;
+}
+
+/* Clear floats after images */
+.ProseMirror p {
+  clear: both;
+}

@@ -44,6 +44,9 @@ import { format, parseISO } from 'date-fns';
 import { AuthContext } from '../context/AuthContext';
 import ReviewEditor from '../components/ReviewEditor';
 
+// In src/pages/ReviewsPage.tsx - Add the missing navigate import
+import { useNavigate } from 'react-router-dom';
+
 interface Review {
   id: number;
   product_id: number;
@@ -97,7 +100,8 @@ const ReviewsPage: React.FC = () => {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState<boolean>(false);
   const [reviewContent, setReviewContent] = useState<string>('');
   const [isTeamLead, setIsTeamLead] = useState<boolean>(false);
-
+  const navigate = useNavigate();
+  
   useEffect(() => {
     // Set isTeamLead based on user role
     setIsTeamLead(userRole === 'admin' || userRole === 'team_lead');
@@ -186,10 +190,12 @@ const ReviewsPage: React.FC = () => {
     setActiveTab(newValue);
   };
 
-  const handleCreateReview = (): void => {
-    setIsCreateDialogOpen(true);
+  const handleCreateReview = () => {
+    if (!selectedProduct) return;
+  
+    navigate(`/reviews/create/${selectedProduct}`);
   };
-
+  
   const handleStartNewReview = (): void => {
     if (!selectedProduct) return;
     
