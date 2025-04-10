@@ -18,7 +18,8 @@ import NotificationsPage from "./pages/NotificationsPage";
 import { invoke } from "@tauri-apps/api/core";
 import TeamDashboard from "./pages/TeamDashboard/TeamDashboard";
 import ReviewsPage from "./pages/ReviewsPage";
-
+import ProductsPage from "./pages/ProductsPage/ProductsPage";
+import ProductDetailsPage from "./pages/ProductDetailsPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,8 @@ function AppLayout() {
           <Route path="/notifications" element={isAuthenticated ? <NotificationsPage /> : <Login />} />
           <Route path="/teams/:teamId" element={isAuthenticated ? <TeamDashboard /> : <Login />} />
           <Route path="/reviews" element={isAuthenticated ? <ReviewsPage /> : <Login />} />
+          <Route path="/products" element={isAuthenticated ? <ProductsPage /> : <Login /> } />
+          <Route path="/products/:productId" element= {<ProductDetailsPage /> } />
           {/* Redirect to login if not authenticated */}
         </Routes>
       </Box>

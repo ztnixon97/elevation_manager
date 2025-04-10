@@ -74,7 +74,7 @@ pub async fn get_all_product_types(state: State<'_, AuthState>) -> Result<String
 #[tauri::command(rename_all="snake_case")]
 pub async fn get_user_products(state: State<'_, AuthState>) -> Result<String, String> {
     let client = Client::new();
-    let url = "http://localhost:3000/users/me/products".to_string();
+    let url = "http://localhost:3000/products/me".to_string();
 
     let auth_header = get_auth_header(&state).await?;
 
@@ -206,3 +206,40 @@ pub async fn assign_product_to_user(
         Err(format!("Failed to assign product to user: {:?}", response_text))
     }
 }
+
+// Add this to src-tauri/src/commands/products.rs
+
+#[tauri::command(rename_all="snake_case")]
+pub async fn get_product_details(
+    state: State<'_, AuthState>,
+    product_id: i32,
+) -> Result<String, String> {
+    let client = Client::new();
+    let url = format!("http://localhost:3000/products/{}", product_id);
+    let auth_header = get_auth_header(&state).await?;
+    
+    info!("Fetching details for product {product_id}...");
+
+    let response = client
+        .get(&url)
+        .header("Authorization", auth_header)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Request failed: {}", e);
+            format!("Request failed: {e}")
+        })?;
+    
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        info!("Successfully retrieved product details.");
+        debug!("Response: {}", response_text);
+        Ok(response_text)
+    } else {
+        error!("Failed to retrieve product details. Status: {:?}, Response: {}", status, response_text);
+        Err(format!("Failed to retrieve product details: {:?}", response_text))
+    }
+}
+

@@ -1,5 +1,5 @@
 // src/pages/TeamDashboard/components/MembersPanel.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Box,
@@ -34,7 +34,9 @@ interface User {
   username: string;
 }
 
-const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead }) => {
+const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members: initialMembers, isTeamLead }) => {
+  // Add this state to track members internally
+  const [members, setMembers] = useState<any[]>(initialMembers);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -44,6 +46,11 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
   const [selectedRole, setSelectedRole] = useState('member');
   const [message, setMessage] = useState<{ text: string; severity: 'success' | 'error' } | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // Update local state when prop changes
+  useEffect(() => {
+    setMembers(initialMembers);
+  }, [initialMembers]);
 
   // Columns for the members DataGrid
   const columns: GridColDef[] = [
@@ -137,7 +144,7 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
     try {
       await invoke('add_user_to_team', {
         team_id: teamId,
-        userId: selectedUser,
+        user_id: selectedUser,
         role: selectedRole,
       });
       
@@ -145,7 +152,8 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
       const response = await invoke<string>('get_team_users', { team_id: teamId });
       const data = JSON.parse(response);
       if (data.data && data.data.members) {
-        members = data.data.members;
+        // Update the local state instead of the prop
+        setMembers(data.data.members);
       }
       
       setMessage({
@@ -180,7 +188,8 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
       const response = await invoke<string>('get_team_users', { team_id: teamId });
       const data = JSON.parse(response);
       if (data.data && data.data.members) {
-        members = data.data.members;
+        // Update the local state instead of the prop
+        setMembers(data.data.members);
       }
       
       setMessage({
@@ -214,7 +223,8 @@ const MembersPanel: React.FC<MembersPanelProps> = ({ teamId, members, isTeamLead
       const response = await invoke<string>('get_team_users', { team_id: teamId });
       const data = JSON.parse(response);
       if (data.data && data.data.members) {
-        members = data.data.members;
+        // Update the local state instead of the prop
+        setMembers(data.data.members);
       }
       
       setMessage({

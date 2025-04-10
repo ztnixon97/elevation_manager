@@ -22,6 +22,7 @@ import ProductsPanel from './components/ProductsPanel';
 import TaskOrdersPanel from './components/TaskOrdersPanel';
 import ReviewsPanel from './components/ReviewsPanel';
 import NotificationsPanel from './components/NotificationsPanel';
+import PendingRequestsPanel from './components/PendingRequestsPanel';
 import { useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 
@@ -50,6 +51,9 @@ const TeamDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTeamLead, setIsTeamLead] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  // Add a state to track which tabs have been rendered
+  const [renderedTabs, setRenderedTabs] = useState<Set<number>>(new Set([0])); // Start with first tab
 
   useEffect(() => {
     if (!parsedTeamId) {
@@ -79,6 +83,19 @@ const TeamDashboard: React.FC = () => {
           const teamRole = currentTeam.role || 'member';
           setCurrentTeamRole(teamRole);
           setIsTeamLead(teamRole === 'team_lead' || userRole === 'admin');
+          
+          // If team lead, fetch pending requests count
+          if (teamRole === 'team_lead' || userRole === 'admin') {
+            try {
+              const requestsResponse = await invoke<string>('get_pending_team_requests', { 
+                team_id: parsedTeamId 
+              });
+              const requestsData = JSON.parse(requestsResponse);
+              setPendingRequestsCount(requestsData.data?.length || 0);
+            } catch (err) {
+              console.error('Failed to fetch pending requests:', err);
+            }
+          }
         } else {
           // User is not part of this team, redirect to teams page
           navigate('/teams');
@@ -96,6 +113,8 @@ const TeamDashboard: React.FC = () => {
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
+    // Add this tab to the set of rendered tabs
+    setRenderedTabs(prev => new Set([...prev, newValue]));
   };
 
   if (loading) {
@@ -140,7 +159,7 @@ const TeamDashboard: React.FC = () => {
         {/* Scrollable Summary Section */}
         <Box sx={{ flex: '0 0 auto', overflowY: 'auto', mb: 2 }}>
           <MuiGrid container spacing={3}>
-            <MuiGrid >
+            <MuiGrid>
               <Card sx={{ width: '100%', height: '100%' }}>
                 <CardContent>
                   <Typography variant="h6">Team Members</Typography>
@@ -148,7 +167,7 @@ const TeamDashboard: React.FC = () => {
                 </CardContent>
               </Card>
             </MuiGrid>
-            <MuiGrid >
+            <MuiGrid>
               <Card sx={{ width: '100%', height: '100%' }}>
                 <CardContent>
                   <Typography variant="h6">Active Products</Typography>
@@ -156,7 +175,7 @@ const TeamDashboard: React.FC = () => {
                 </CardContent>
               </Card>
             </MuiGrid>
-            <MuiGrid >
+            <MuiGrid>
               <Card sx={{ width: '100%', height: '100%' }}>
                 <CardContent>
                   <Typography variant="h6">Pending Reviews</Typography>
@@ -164,6 +183,16 @@ const TeamDashboard: React.FC = () => {
                 </CardContent>
               </Card>
             </MuiGrid>
+            {isTeamLead && (
+              <MuiGrid>
+                <Card sx={{ width: '100%', height: '100%' }}>
+                  <CardContent>
+                    <Typography variant="h6">Pending Requests</Typography>
+                    <Typography variant="h4">{pendingRequestsCount}</Typography>
+                  </CardContent>
+                </Card>
+              </MuiGrid>
+            )}
           </MuiGrid>
         </Box>
 
@@ -181,14 +210,41 @@ const TeamDashboard: React.FC = () => {
             <Tab label="Task Orders" />
             <Tab label="Reviews" />
             <Tab label="Notifications" />
+            {isTeamLead && <Tab label="Pending Requests" />}
           </Tabs>
 
           <Box sx={{ p: 2, flexGrow: 1, overflow: 'auto' }}>
-            {activeTab === 0 && <MembersPanel teamId={parsedTeamId} members={members} isTeamLead={isTeamLead} />}
-            {activeTab === 1 && <ProductsPanel teamId={parsedTeamId} isTeamLead={isTeamLead} />}
-            {activeTab === 2 && <TaskOrdersPanel teamId={parsedTeamId} isTeamLead={isTeamLead} />}
-            {activeTab === 3 && <ReviewsPanel teamId={parsedTeamId} isTeamLead={isTeamLead} />}
-            {activeTab === 4 && <NotificationsPanel teamId={parsedTeamId} isTeamLead={isTeamLead} />}
+            {/* Only render the tab content if it's active or has been rendered before */}
+            {(activeTab === 0 || renderedTabs.has(0)) && 
+              <Box sx={{ display: activeTab === 0 ? 'block' : 'none' }}>
+                <MembersPanel teamId={parsedTeamId} members={members} isTeamLead={isTeamLead} />
+              </Box>
+            }
+            {(activeTab === 1 || renderedTabs.has(1)) && 
+              <Box sx={{ display: activeTab === 1 ? 'block' : 'none' }}>
+                <ProductsPanel teamId={parsedTeamId} isTeamLead={isTeamLead} />
+              </Box>
+            }
+            {(activeTab === 2 || renderedTabs.has(2)) && 
+              <Box sx={{ display: activeTab === 2 ? 'block' : 'none' }}>
+                <TaskOrdersPanel teamId={parsedTeamId} isTeamLead={isTeamLead} />
+              </Box>
+            }
+            {(activeTab === 3 || renderedTabs.has(3)) && 
+              <Box sx={{ display: activeTab === 3 ? 'block' : 'none' }}>
+                <ReviewsPanel teamId={parsedTeamId} isTeamLead={isTeamLead} />
+              </Box>
+            }
+            {(activeTab === 4 || renderedTabs.has(4)) && 
+              <Box sx={{ display: activeTab === 4 ? 'block' : 'none' }}>
+                <NotificationsPanel teamId={parsedTeamId} isTeamLead={isTeamLead} />
+              </Box>
+            }
+            {isTeamLead && (activeTab === 5 || renderedTabs.has(5)) && 
+              <Box sx={{ display: activeTab === 5 ? 'block' : 'none' }}>
+                <PendingRequestsPanel teamId={parsedTeamId} />
+              </Box>
+            }
           </Box>
         </Paper>
       </Box>

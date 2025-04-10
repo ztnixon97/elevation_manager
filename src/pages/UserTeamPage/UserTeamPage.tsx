@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -45,7 +45,7 @@ const UserTeamPage = () => {
       const parsed = JSON.parse(res);
       return parsed.data || [];
     },
-    staleTime: 60000,
+    staleTime: 600,
   });
 
   // 🔸 All teams (lazy)

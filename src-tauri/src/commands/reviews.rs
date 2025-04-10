@@ -324,7 +324,7 @@ pub async fn update_review(
 }
 
 /// Get all reviews for a product
-#[tauri::command]
+#[tauri::command(rename_all="snake_case")]
 pub async fn get_product_reviews(
     state: State<'_, AuthState>,
     product_id: i32,

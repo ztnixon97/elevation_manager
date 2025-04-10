@@ -10,6 +10,7 @@ use commands::products::*;
 use commands::users::*;
 use commands::userteams::*;
 use commands::notifications::*;
+use commands::reviews::*;
 use log::info;
 use tauri::State;
 use tokio::sync::Mutex;
@@ -65,6 +66,13 @@ pub async fn run() {
             get_user_products,
             checkout_product,
             assign_product_to_user,
+            get_product_details,
+            get_product_reviews,
+            get_team_notifications,
+            get_pending_team_requests,
+            approve_team_request,
+            reject_team_request,
+            send_team_notification,
             
         ])
         .setup(|_app| {

@@ -735,3 +735,39 @@ pub async fn remove_task_order_from_team(state: State<'_, AuthState>, team_id: i
             Err(format!("Failed to remove Task Order: {}", response_text))
         }
 }
+
+/// Tauri command that fetches notifications for a specific team.
+#[tauri::command(rename_all="snake_case")]
+pub async fn get_team_notifications(
+    state: State<'_, AuthState>,
+    team_id: i32,
+) -> Result<String, String> {
+    let client = Client::new();
+    let url = format!("http://localhost:3000/teams/{}/notifications", team_id);
+
+    let auth_header = get_auth_header(&state).await?;
+
+    info!("Fetching notifications for team {team_id}...");
+
+    let response = client
+        .get(&url)
+        .header("Authorization", auth_header)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Request failed: {e}");
+            format!("Request failed: {e}")
+        })?;
+
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        info!("Successfully retrieved team notifications");
+        debug!("Response: {response_text}");
+        Ok(response_text)
+    } else {
+        error!("Failed to retrieve team notifications. Status: {status:?}, Response: {response_text}");
+        Err(format!("Failed to retrieve team notifications: {response_text}"))
+    }
+}
