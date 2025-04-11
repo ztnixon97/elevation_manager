@@ -3,23 +3,24 @@ mod commands;
 mod state;
 mod utils;
 
-use auth::login::{login, register, AuthState}; 
-use commands::team::*;
+use auth::login::{login, register, AuthState};
 use commands::admin::*;
+use commands::notifications::*;
 use commands::products::*;
+use commands::reviews::*;
+use commands::team::*;
 use commands::users::*;
 use commands::userteams::*;
-use commands::notifications::*;
-use commands::reviews::*;
 use log::info;
-use tauri::State;
-use tokio::sync::Mutex;
 use std::sync::Arc;
+use tauri::State;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification;
+use tokio::sync::Mutex;
 #[tokio::main]
 pub async fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .manage(AuthState::default())
@@ -85,7 +86,10 @@ pub async fn run() {
             get_review_images,
             delete_review_image,
             approve_review,
-            reject_review,           
+            reject_review,
+            submit_review_from_file,
+            update_review_from_file,
+            sync_review_from_file,
         ])
         .setup(|_app| {
             log::info!("Tauri app initialized successfully!");

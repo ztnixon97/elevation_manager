@@ -52,14 +52,26 @@ import { ResizableImage } from './ResizeableImageExtension';
 // Custom toolbar styles
 import './Tiptap.css';
 
-// Available review statuses for products
-const PRODUCT_STATUSES = [
-  { value: 'pending_review', label: 'Pending Review' },
-  { value: 'reviewed', label: 'Reviewed' },
-  { value: 'accepted', label: 'Accepted' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'needs_revision', label: 'Needs Revision' },
+import { mkdir, writeTextFile, BaseDirectory } from '@tauri-apps/plugin-fs';
+
+const REVIEW_STATUSES = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'pending', label: 'Pending Review' },
+  { value: 'approved', label: 'Approved' },
 ];
+
+const PRODUCT_STATUSES = [
+  { value: 'InReview', label: 'In Review' },
+  { value: 'Rejected', label: 'Rejected' },
+  { value: 'Accepted', label: 'Accepted' },
+];
+
+// Review statuses for internal use (not shown in UI)
+const REVIEW_STATUS = {
+  DRAFT: 'Draft',
+  PENDING: 'Pending',
+  APPROVED: 'Approved',
+};
 
 interface Review {
   id?: number;
@@ -93,6 +105,8 @@ interface ReviewEditorProps {
   productName?: string;
   onReviewUpdated?: () => void;
   initialReview?: Review | null;
+  initialContent?: string;  // New prop for draft content
+  onSaveDraft?: (content: string) => void;  // New prop for saving drafts
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
@@ -321,15 +335,55 @@ const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
   );
 };
 
+const prepareDirectoryStructure = async (productId: number) => {
+  console.log(`[Directory Setup] Starting directory preparation for product ${productId}`);
+  try {
+    // Create base reviews directory in AppData
+    const reviewsPath = 'reviews';
+    console.log(`[Directory Setup] Creating base directory at AppData/${reviewsPath}`);
+    await mkdir(reviewsPath, { 
+      baseDir: BaseDirectory.AppData,
+      recursive: true 
+    });
+    console.log('[Directory Setup] Base directory created successfully');
+
+    // Create product-specific directory
+    const productPath = `reviews/${productId}`;
+    console.log(`[Directory Setup] Creating product directory at AppData/${productPath}`);
+    await mkdir(productPath, { 
+      baseDir: BaseDirectory.AppData,
+      recursive: true 
+    });
+    console.log('[Directory Setup] Product directory created successfully');
+
+    // Return the product path for file operations
+    return productPath;
+
+  } catch (err) {
+    const errorDetails = {
+      productId,
+      errorType: err instanceof Error ? err.constructor.name : 'Unknown',
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined
+    };
+    
+    console.error('[Directory Setup] Failed to create directory structure:', errorDetails);
+    throw new Error(`Directory creation failed: ${errorDetails.message}`);
+  }
+};
+
 const ReviewEditor: React.FC<ReviewEditorProps> = ({ 
   productId, 
   productName, 
   onReviewUpdated = () => {},
-  initialReview = null 
+  initialReview = null,
+  initialContent = null,
+  onSaveDraft = null
 }) => {
   // State for the review editor
   const [reviewTitle, setReviewTitle] = useState<string>('');
-  const [productStatus, setProductStatus] = useState<string>('reviewed');
+  const [productStatus, setProductStatus] = useState<string>('InReview');
+  const [reviewStatus, setReviewStatus] = useState<string>(REVIEW_STATUS.DRAFT);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [message, setMessage] = useState<MessageState | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -341,18 +395,6 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
   
   // Reference to auto-save timer
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Function to handle pasted images
-  const handlePastedImage = (image: File, editor: Editor) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        const base64Image = e.target.result.toString();
-        editor.chain().focus().setImage({ src: base64Image }).run();
-      }
-    };
-    reader.readAsDataURL(image);
-  };
 
   // Configure the TipTap editor
   const editor = useEditor({
@@ -386,52 +428,29 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
         saveDraftLocally(editor.getHTML());
       }, 3000); // Auto-save after 3 seconds of inactivity
     },
-    // Add paste handler for images
-    editorProps: {
-      handlePaste: (view, event) => {
-        // Handle pasted images
-        const items = event.clipboardData?.items;
-        if (!items) return false;
-        
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          
-          if (item.type.indexOf('image') === 0) {
-            event.preventDefault();
-            
-            const blob = item.getAsFile();
-            if (!blob) continue;
-            
-            // Use our helper function
-            handlePastedImage(blob, editor);
-            return true; // Handled this paste event
-          }
-        }
-        
-        return false; // Let default handler process other paste types
-      },
-      handleDrop: (view, event, slice, moved) => {
-        if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
-          const file = event.dataTransfer.files[0];
-          const fileType = file.type;
-          
-          // Handle image files
-          if (fileType.startsWith('image/')) {
-            event.preventDefault();
-            
-            // Handle dropped image
-            handlePastedImage(file, editor);
-            return true;
-          }
-        }
-        return false;
-      },
-    },
   });
 
-  // Load any existing draft from localStorage on component mount
+  // Load initial content on component mount
   useEffect(() => {
-    const loadLocalDraft = () => {
+    const loadLocalDraftFromFilesystem = async () => {
+      try {
+        // Try to load from filesystem first
+        const fsContent = await invoke<string>('load_review_draft', {
+          product_id: productId
+        }).catch(() => null); // Ignore errors if no draft exists
+        
+        if (fsContent && editor) {
+          editor.commands.setContent(fsContent);
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.error('Error loading draft from filesystem:', err);
+        return false;
+      }
+    };
+    
+    const loadLocalDraftFromBrowser = () => {
       const draftKey = `review_draft_${productId}`;
       const savedDraft = localStorage.getItem(draftKey);
       
@@ -440,30 +459,52 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
           const parsedDraft = JSON.parse(savedDraft) as LocalDraft;
           setLocalDraft(parsedDraft);
           
-          // If no server review, offer to load the local draft
-          if (!initialReview) {
-            setIsConfirmDialogOpen(true);
-            setDialogAction('load_draft');
+          // Only load browser draft if we don't have a filesystem draft
+          if (!initialContent && !initialReview && editor) {
+            editor.commands.setContent(parsedDraft.content || '');
+            setReviewTitle(parsedDraft.title || '');
+            setProductStatus(parsedDraft.product_status || 'InReview');
+            return true;
           }
         } catch (err) {
           console.error('Error parsing local draft:', err);
           localStorage.removeItem(draftKey);
         }
       }
+      return false;
     };
-
-    // Load initial review if provided
-    if (initialReview) {
-      setReviewTitle(initialReview.title || '');
-      setProductStatus(initialReview.product_status || 'reviewed');
-      setReviewId(initialReview.id || null);
-      
-      if (editor) {
-        editor.commands.setContent(initialReview.content || '');
-      }
-    }
     
-    loadLocalDraft();
+    const initializeEditor = async () => {
+      // Set from initialReview if available
+      if (initialReview) {
+        setReviewTitle(initialReview.title || '');
+        setProductStatus(initialReview.product_status || 'InReview');
+        setReviewStatus(initialReview.review_status || REVIEW_STATUS.DRAFT);
+        setReviewId(initialReview.id || null);
+        
+        if (editor && initialReview.content) {
+          editor.commands.setContent(initialReview.content);
+          return;
+        }
+      }
+      
+      // Use initialContent if provided directly
+      if (initialContent && editor) {
+        editor.commands.setContent(initialContent);
+        return;
+      }
+      
+      // Otherwise try to load from filesystem
+      const filesystemLoaded = await loadLocalDraftFromFilesystem();
+      if (!filesystemLoaded) {
+        // Finally try browser storage
+        loadLocalDraftFromBrowser();
+      }
+    };
+    
+    if (editor) {
+      initializeEditor();
+    }
     
     // Cleanup timer when component unmounts
     return () => {
@@ -471,80 +512,100 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [productId, initialReview, editor]);
+  }, [productId, initialReview, initialContent, editor]);
 
   // Function to save draft locally
-  const saveDraftLocally = (content: string) => {
+  const saveDraftLocally = async (content: string) => {
     if (!editor || !content) return;
     
-    const draftKey = `review_draft_${productId}`;
-    const draft: LocalDraft = {
-      title: reviewTitle,
-      content: content,
-      product_status: productStatus,
-      last_saved: new Date().toISOString(),
-    };
-    
-    localStorage.setItem(draftKey, JSON.stringify(draft));
-    setLastSaved(new Date());
-    setLocalDraft(draft);
+    try {
+      // Save to localStorage for browser persistence
+      const draftKey = `review_draft_${productId}`;
+      const draft: LocalDraft = {
+        title: reviewTitle,
+        content: content,
+        product_status: productStatus,
+        last_saved: new Date().toISOString(),
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+      
+      // Also save to filesystem via Tauri
+      if (onSaveDraft) {
+        onSaveDraft(content);
+      } else {
+        await invoke('save_review_draft', {
+          product_id: productId,
+          content: content,
+        });
+      }
+      
+      setLastSaved(new Date());
+      setLocalDraft(draft);
+      
+      setMessage({
+        text: 'Draft saved locally',
+        severity: 'success',
+      });
+    } catch (err) {
+      console.error('Failed to save draft locally:', err);
+      setMessage({
+        text: typeof err === 'string' ? err : 'Failed to save draft locally',
+        severity: 'error',
+      });
+    }
   };
 
-// Function to load local draft
+  // Function to load local draft
   const loadLocalDraft = () => {
     if (!localDraft || !editor) return;
     
     setReviewTitle(localDraft.title || '');
-    setProductStatus(localDraft.product_status || 'reviewed');
+    setProductStatus(localDraft.product_status || 'InReview');
     editor.commands.setContent(localDraft.content || '');
     
     setIsConfirmDialogOpen(false);
   };
-
+  
   // Function to sync draft to server
   const syncToServer = async () => {
     if (!editor) return;
-    
+
     setIsSyncing(true);
-    const content = editor.getHTML();
-    
+
     try {
-      // Check if we're updating an existing review or creating a new one
+      const content = editor.getHTML();
+
+      // Create/Update review with DRAFT status
       if (reviewId) {
         await invoke('update_review', {
-          reviewId,
+          review_id: reviewId,
           review: {
             title: reviewTitle,
             content,
             product_status: productStatus,
+            review_status: 'Draft',
           },
         });
       } else {
-        const result = await invoke<{ data: number }>('create_review', {
-          productId,
+        const result = await invoke('create_review', {
+          product_id: productId,
           review: {
             title: reviewTitle,
             content,
+            product_id: productId,
             product_status: productStatus,
-            review_status: 'draft',
+            review_status: 'Draft',
           },
         });
-        
-        setReviewId(result.data);
+        setReviewId(result.data); // Backend returns the review ID
       }
-      
-      setMessage({
-        text: 'Review synced to server successfully',
-        severity: 'success',
-      });
-      
-      // Notify parent component
+
+      setMessage({ text: 'Review synced successfully', severity: 'success' });
       onReviewUpdated();
-      
     } catch (err) {
-      console.error('Error syncing review to server:', err);
+      console.error('Error syncing review:', err);
       setMessage({
-        text: typeof err === 'string' ? err : 'Failed to sync review to server',
+        text: err instanceof Error ? err.message : 'Failed to sync review',
         severity: 'error',
       });
     } finally {
@@ -555,54 +616,51 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
   // Function to submit review for approval
   const submitForApproval = async () => {
     if (!editor) return;
-    
+
     setIsSubmitting(true);
-    const content = editor.getHTML();
-    
+
     try {
-      // First sync to make sure content is saved
-      if (!reviewId) {
-        const result = await invoke<{ data: number }>('create_review', {
-          productId,
-          review: {
-            title: reviewTitle,
-            content,
-            product_status: productStatus,
-            review_status: 'pending',
-          },
-        });
-        
-        setReviewId(result.data);
-      } else {
-        // Update the existing review and change status to pending
+      const content = editor.getHTML();
+
+      if (reviewId) {
         await invoke('update_review', {
-          reviewId,
+          review_id: reviewId,
           review: {
             title: reviewTitle,
             content,
             product_status: productStatus,
-            review_status: 'pending',
+            review_status: 'Pending',
           },
         });
+      } else {
+        const result = await invoke('create_review', {
+          product_id: productId,
+          review: {
+            title: reviewTitle,
+            content,
+            product_id: productId,
+            product_status: productStatus,
+            review_status: 'Pending',
+          },
+        });
+        setReviewId(result.data); // Backend returns the review ID
       }
-      
+
       setMessage({
         text: 'Review submitted for approval successfully',
         severity: 'success',
       });
-      
+
       // Clear local draft after successful submission
       const draftKey = `review_draft_${productId}`;
       localStorage.removeItem(draftKey);
       setLocalDraft(null);
-      
-      // Notify parent component
+
       onReviewUpdated();
-      
     } catch (err) {
       console.error('Error submitting review:', err);
       setMessage({
-        text: typeof err === 'string' ? err : 'Failed to submit review',
+        text: err instanceof Error ? err.message : 'Failed to submit review',
         severity: 'error',
       });
     } finally {

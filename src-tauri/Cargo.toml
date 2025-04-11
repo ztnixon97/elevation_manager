@@ -31,4 +31,5 @@ tauri-plugin-notification = "2"
 base64 = "0.22.1"
 dirs = "6.0.0"
 chrono = { version = "0.4.40", features = ["serde"] }
+tauri-plugin-fs = "2"
 

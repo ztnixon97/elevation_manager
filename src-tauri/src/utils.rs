@@ -1,5 +1,5 @@
 use crate::auth::login::AuthState;
-use log::{error, info, debug};
+use log::{debug, error, info};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tauri::State;

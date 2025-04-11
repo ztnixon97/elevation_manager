@@ -1,18 +1,17 @@
-use crate::{auth::login::AuthState, NotificationTarget};
 use crate::utils::get_auth_header;
+use crate::{auth::login::AuthState, NotificationTarget};
+use chrono::{Duration, Utc};
+use log::{debug, error, info};
 use reqwest::Client;
-use log::{error, info, debug};
 use serde_json::{json, Value};
 use tauri::State;
-use chrono::{Duration, Utc};
 
-
-#[tauri::command(rename_all="snake_case")]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn request_team_join(
     state: State<'_, AuthState>,
     team_id: i32,
     role: String,
-    justification: Option<String>
+    justification: Option<String>,
 ) -> Result<String, String> {
     // This function remains unchanged as it works well
     let client = Client::new();
@@ -49,17 +48,22 @@ pub async fn request_team_join(
 
     let status = response.status();
     let response_text = response.text().await.unwrap_or_default();
-    
+
     if status.is_success() {
         info!("Successfully submitted team join request");
         Ok(response_text)
     } else {
-        error!("Failed to submit team join request Status: {:?}, Response: {}", status, response_text);
-        Err(format!("Failed to submit team join request: {response_text}"))
+        error!(
+            "Failed to submit team join request Status: {:?}, Response: {}",
+            status, response_text
+        );
+        Err(format!(
+            "Failed to submit team join request: {response_text}"
+        ))
     }
 }
 
-#[tauri::command(rename_all="snake_case")]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn get_pending_team_requests(
     state: State<'_, AuthState>,
     team_id: i32,
@@ -83,7 +87,10 @@ pub async fn get_pending_team_requests(
     let response_text = response.text().await.unwrap_or_default();
 
     if status.is_success() {
-        info!("✅ Successfully retrieved pending requests for team {}", team_id);
+        info!(
+            "✅ Successfully retrieved pending requests for team {}",
+            team_id
+        );
         debug!("Response: {}", response_text);
         Ok(response_text)
     } else {
@@ -92,9 +99,15 @@ pub async fn get_pending_team_requests(
             info!("Dedicated endpoint not found, falling back to filtering approach");
             return fallback_get_pending_team_requests(state, team_id).await;
         }
-        
-        error!("❌ Failed to retrieve pending requests. Status: {:?}, Response: {}", status, response_text);
-        Err(format!("Failed to retrieve pending requests: {}", response_text))
+
+        error!(
+            "❌ Failed to retrieve pending requests. Status: {:?}, Response: {}",
+            status, response_text
+        );
+        Err(format!(
+            "Failed to retrieve pending requests: {}",
+            response_text
+        ))
     }
 }
 
@@ -107,7 +120,10 @@ async fn fallback_get_pending_team_requests(
     let url = "http://localhost:3000/requests?status=pending";
 
     let auth_header = get_auth_header(&state).await?;
-    debug!("🔍 Falling back to filtering all pending requests for team {}", team_id);
+    debug!(
+        "🔍 Falling back to filtering all pending requests for team {}",
+        team_id
+    );
 
     let response = client
         .get(url)
@@ -123,11 +139,12 @@ async fn fallback_get_pending_team_requests(
         // Parse the response to filter only team requests for this team
         let parsed_response: Value = serde_json::from_str(&response_text)
             .map_err(|e| format!("Failed to parse response: {}", e))?;
-        
+
         // Extract the data array from the response
         if let Some(data) = parsed_response["data"].as_array() {
             // Filter the data for TeamJoin requests with target_id matching team_id
-            let team_requests: Vec<Value> = data.iter()
+            let team_requests: Vec<Value> = data
+                .iter()
                 .filter(|req| {
                     let is_team_join = req["request_type"].as_str().unwrap_or("") == "TeamJoin";
                     let target_matches = req["target_id"].as_i64().unwrap_or(-1) == team_id as i64;
@@ -135,7 +152,7 @@ async fn fallback_get_pending_team_requests(
                 })
                 .cloned()
                 .collect();
-            
+
             // Add username information for each request
             let mut enriched_requests = Vec::new();
             for req in team_requests {
@@ -146,35 +163,36 @@ async fn fallback_get_pending_team_requests(
                         .get(&user_url)
                         .header("Authorization", auth_header.clone())
                         .send()
-                        .await {
-                            Ok(user_response) => {
-                                if user_response.status().is_success() {
-                                    if let Ok(user_data) = user_response.json::<Value>().await {
-                                        if let Some(username) = user_data["data"]["username"].as_str() {
-                                            // Create an enriched request with username added
-                                            let mut enriched_req = req.clone();
-                                            enriched_req["username"] = json!(username);
-                                            enriched_requests.push(enriched_req);
-                                        } else {
-                                            // Just add the original request if username not found
-                                            enriched_requests.push(req);
-                                        }
+                        .await
+                    {
+                        Ok(user_response) => {
+                            if user_response.status().is_success() {
+                                if let Ok(user_data) = user_response.json::<Value>().await {
+                                    if let Some(username) = user_data["data"]["username"].as_str() {
+                                        // Create an enriched request with username added
+                                        let mut enriched_req = req.clone();
+                                        enriched_req["username"] = json!(username);
+                                        enriched_requests.push(enriched_req);
                                     } else {
+                                        // Just add the original request if username not found
                                         enriched_requests.push(req);
                                     }
                                 } else {
                                     enriched_requests.push(req);
                                 }
-                            },
-                            Err(_) => {
+                            } else {
                                 enriched_requests.push(req);
                             }
                         }
+                        Err(_) => {
+                            enriched_requests.push(req);
+                        }
+                    }
                 } else {
                     enriched_requests.push(req);
                 }
             }
-            
+
             // Create a new response with the filtered and enriched requests
             let filtered_response = json!({
                 "success": true,
@@ -182,22 +200,31 @@ async fn fallback_get_pending_team_requests(
                 "message": "Filtered team requests",
                 "data": enriched_requests
             });
-            
-            info!("✅ Successfully filtered pending requests for team {}", team_id);
+
+            info!(
+                "✅ Successfully filtered pending requests for team {}",
+                team_id
+            );
             return Ok(filtered_response.to_string());
         }
-        
+
         // If we couldn't extract the data array, return the original response
         info!("✅ Retrieved pending requests for team {}", team_id);
         Ok(response_text)
     } else {
-        error!("❌ Failed to retrieve pending requests. Status: {:?}, Response: {}", status, response_text);
-        Err(format!("Failed to retrieve pending requests: {}", response_text))
+        error!(
+            "❌ Failed to retrieve pending requests. Status: {:?}, Response: {}",
+            status, response_text
+        );
+        Err(format!(
+            "Failed to retrieve pending requests: {}",
+            response_text
+        ))
     }
 }
 
 // These functions remain unchanged
-#[tauri::command(rename_all="snake_case")]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn approve_team_request(
     state: State<'_, AuthState>,
     request_id: i32,
@@ -210,7 +237,7 @@ pub async fn approve_team_request(
     info!("👍 Approving request {} for team {}", request_id, team_id);
 
     // Create the request payload with approved status
-    
+
     let json_payload = "Approved";
 
     let response = client
@@ -230,12 +257,15 @@ pub async fn approve_team_request(
         debug!("Response: {}", response_text);
         Ok(response_text)
     } else {
-        error!("❌ Failed to approve request. Status: {:?}, Response: {}", status, response_text);
+        error!(
+            "❌ Failed to approve request. Status: {:?}, Response: {}",
+            status, response_text
+        );
         Err(format!("Failed to approve request: {}", response_text))
     }
 }
 
-#[tauri::command(rename_all="snake_case")]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn reject_team_request(
     state: State<'_, AuthState>,
     request_id: i32,
@@ -267,12 +297,13 @@ pub async fn reject_team_request(
         debug!("Response: {}", response_text);
         Ok(response_text)
     } else {
-        error!("❌ Failed to reject request. Status: {:?}, Response: {}", status, response_text);
+        error!(
+            "❌ Failed to reject request. Status: {:?}, Response: {}",
+            status, response_text
+        );
         Err(format!("Failed to reject request: {}", response_text))
     }
 }
-
-
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn send_team_notification(
@@ -288,9 +319,8 @@ pub async fn send_team_notification(
     let auth_header = get_auth_header(&state).await?;
 
     // Convert expiry_days to RFC3339 timestamp string (ISO8601)
-    let expires_at = expiry_days.map(|days| {
-        (Utc::now() + Duration::days(days)).naive_utc().to_string()
-    });
+    let expires_at =
+        expiry_days.map(|days| (Utc::now() + Duration::days(days)).naive_utc().to_string());
 
     let payload = json!({
         "title": title,

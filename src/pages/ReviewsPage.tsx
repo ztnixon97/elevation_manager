@@ -38,13 +38,12 @@ import {
   Check as CheckIcon,
   Close as CloseIcon,
   ViewList as ViewListIcon,
+  Save as SaveIcon,
 } from '@mui/icons-material';
 import { invoke } from '@tauri-apps/api/core';
 import { format, parseISO } from 'date-fns';
 import { AuthContext } from '../context/AuthContext';
 import ReviewEditor from '../components/ReviewEditor';
-
-// In src/pages/ReviewsPage.tsx - Add the missing navigate import
 import { useNavigate } from 'react-router-dom';
 
 interface Review {
@@ -100,6 +99,7 @@ const ReviewsPage: React.FC = () => {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState<boolean>(false);
   const [reviewContent, setReviewContent] = useState<string>('');
   const [isTeamLead, setIsTeamLead] = useState<boolean>(false);
+  const [draftContent, setDraftContent] = useState<string | null>(null);
   const navigate = useNavigate();
   
   useEffect(() => {
@@ -114,8 +114,11 @@ const ReviewsPage: React.FC = () => {
     setLoading(true);
     try {
       // Fetch user's reviews
-      const myReviewsResponse = await invoke<string>('get_user_reviews');
-      const myReviewsData = JSON.parse(myReviewsResponse);
+      const myReviewsResponse = await invoke<string | object>('get_user_reviews');
+      const myReviewsData = typeof myReviewsResponse === 'string' 
+        ? JSON.parse(myReviewsResponse) 
+        : myReviewsResponse;
+        
       if (myReviewsData.data) {
         // Fetch associated product names
         const enrichedReviews = await enrichReviewsWithProductNames(myReviewsData.data);
@@ -126,8 +129,10 @@ const ReviewsPage: React.FC = () => {
       if (isTeamLead) {
         // This would typically fetch reviews where status is 'pending'
         // For now, we'll just use a filter on allReviews
-        const allReviewsResponse = await invoke<string>('get_all_reviews');
-        const allReviewsData = JSON.parse(allReviewsResponse);
+        const allReviewsResponse = await invoke<string | object>('get_all_reviews');
+        const allReviewsData = typeof allReviewsResponse === 'string' 
+          ? JSON.parse(allReviewsResponse) 
+          : allReviewsResponse;
         
         if (allReviewsData.data) {
           const enrichedAllReviews = await enrichReviewsWithProductNames(allReviewsData.data);
@@ -141,8 +146,11 @@ const ReviewsPage: React.FC = () => {
       }
 
       // Fetch available products for creating new reviews
-      const productsResponse = await invoke<string>('get_all_products');
-      const productsData = JSON.parse(productsResponse);
+      const productsResponse = await invoke<string | object>('get_all_products');
+      const productsData = typeof productsResponse === 'string' 
+        ? JSON.parse(productsResponse) 
+        : productsResponse;
+        
       if (productsData.data) {
         setProducts(productsData.data.products || []);
       }
@@ -163,10 +171,13 @@ const ReviewsPage: React.FC = () => {
       reviews.map(async (review) => {
         try {
           // Fetch product details
-          const productResponse = await invoke<string>('get_product', { 
-            productId: review.product_id 
+          const productResponse = await invoke<string | object>('get_product', { 
+            product_id: review.product_id 
           });
-          const productData = JSON.parse(productResponse);
+          const productData = typeof productResponse === 'string'
+            ? JSON.parse(productResponse)
+            : productResponse;
+            
           const productName = productData.data?.product?.site_id || `Product #${review.product_id}`;
           
           return {
@@ -191,17 +202,72 @@ const ReviewsPage: React.FC = () => {
   };
 
   const handleCreateReview = () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct) {
+      setIsCreateDialogOpen(true);
+      return;
+    }
   
     navigate(`/reviews/create/${selectedProduct}`);
   };
+
+  const saveDraftLocally = async (productId: number, content: string) => {
+    try {
+      // Save to filesystem
+      await invoke('save_review_draft', {
+        product_id: productId,
+        content: content
+      });
+      
+      setMessage({
+        text: 'Draft saved locally',
+        severity: 'success'
+      });
+    } catch (err) {
+      console.error('Failed to save draft locally:', err);
+      setMessage({
+        text: typeof err === 'string' ? err : 'Failed to save draft locally',
+        severity: 'error'
+      });
+    }
+  };
+
+  const loadDraftLocally = async (productId: number) => {
+    try {
+      const content = await invoke<string | object>('load_review_draft', {
+        product_id: productId
+      });
+      
+      if (typeof content === 'string') {
+        setDraftContent(content);
+        return content;
+      }
+      
+      // If it's an object with an error message about no draft
+      return null;
+    } catch (err) {
+      // If no draft exists, this isn't necessarily an error
+      if (typeof err === 'string' && err.includes('No draft exists')) {
+        return null;
+      }
+      
+      console.error('Failed to load draft:', err);
+      setMessage({
+        text: typeof err === 'string' ? err : 'Failed to load draft',
+        severity: 'error'
+      });
+      return null;
+    }
+  };
   
-  const handleStartNewReview = (): void => {
+  const handleStartNewReview = async (): Promise<void> => {
     if (!selectedProduct) return;
     
     // Get product name for display
     const product = products.find(p => p.id === selectedProduct);
     const productName = product ? product.site_id : `Product #${selectedProduct}`;
+    
+    // Check for local draft
+    const draftContent = await loadDraftLocally(selectedProduct);
     
     setSelectedReview({
       product_id: selectedProduct,
@@ -220,7 +286,9 @@ const ReviewsPage: React.FC = () => {
     setIsEditorOpen(true);
   };
 
-  const handleEditReview = (review: Review): void => {
+  const handleEditReview = async (review: Review): Promise<void> => {
+    // Try to load any draft content first
+    await loadDraftLocally(review.product_id);
     setSelectedReview(review);
     setIsEditorOpen(true);
   };
@@ -230,10 +298,16 @@ const ReviewsPage: React.FC = () => {
     setLoading(true);
     
     try {
-      const response = await invoke<string>('get_review', { reviewId: review.id });
-      const data = JSON.parse(response);
+      const response = await invoke<string | object>('get_review', { review_id: review.id });
+      const data = typeof response === 'string'
+        ? JSON.parse(response)
+        : response;
       
-      setReviewContent(data.content || 'No content available');
+      if (data.data && data.data.content) {
+        setReviewContent(data.data.content);
+      } else {
+        setReviewContent('No content available');
+      }
       setIsDetailDialogOpen(true);
     } catch (err) {
       console.error('Failed to fetch review details:', err);
@@ -256,7 +330,7 @@ const ReviewsPage: React.FC = () => {
     
     setLoading(true);
     try {
-      await invoke('delete_review', { reviewId: selectedReview.id });
+      await invoke('delete_review', { review_id: selectedReview.id });
       
       // Update local state
       setMyReviews(myReviews.filter(r => r.id !== selectedReview.id));
@@ -285,7 +359,7 @@ const ReviewsPage: React.FC = () => {
   const handleApproveReview = async (review: Review): Promise<void> => {
     setLoading(true);
     try {
-      await invoke('approve_review', { reviewId: review.id });
+      await invoke('approve_review', { review_id: review.id });
       
       // Update local state
       const updatedReview = { ...review, review_status: 'approved' };
@@ -319,7 +393,7 @@ const ReviewsPage: React.FC = () => {
   const handleRejectReview = async (review: Review): Promise<void> => {
     setLoading(true);
     try {
-      await invoke('reject_review', { reviewId: review.id });
+      await invoke('reject_review', { review_id: review.id });
       
       // Update local state
       const updatedReview = { ...review, review_status: 'rejected' };
@@ -353,6 +427,7 @@ const ReviewsPage: React.FC = () => {
   const handleEditorClose = (updated = false): void => {
     setIsEditorOpen(false);
     setSelectedReview(null);
+    setDraftContent(null);
     
     if (updated) {
       fetchData(); // Refresh data if review was updated
@@ -361,6 +436,11 @@ const ReviewsPage: React.FC = () => {
 
   const handleProductSelectChange = (event: SelectChangeEvent<number | string>): void => {
     setSelectedProduct(event.target.value as number);
+  };
+
+  const handleSaveDraft = (content: string): void => {
+    if (!selectedReview) return;
+    saveDraftLocally(selectedReview.product_id, content);
   };
 
   const renderReviewList = (reviews: Review[]): React.ReactNode => {
@@ -483,7 +563,7 @@ const ReviewsPage: React.FC = () => {
             variant="contained"
             color="primary"
             startIcon={<AddIcon />}
-            onClick={handleCreateReview}
+            onClick={() => setIsCreateDialogOpen(true)}
           >
             Create Review
           </Button>
@@ -628,7 +708,9 @@ const ReviewsPage: React.FC = () => {
               productId={selectedReview.product_id}
               productName={selectedReview.product_name}
               initialReview={selectedReview}
+              initialContent={draftContent}
               onReviewUpdated={() => handleEditorClose(true)}
+              onSaveDraft={handleSaveDraft}
             />
           )}
         </DialogContent>
@@ -644,7 +726,7 @@ const ReviewsPage: React.FC = () => {
         onClose={() => setMessage(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert onClose={() => setMessage(null)} severity={message?.severity || 'info'}>
+        <Alert onClose={() => setMessage(null)} severity={message?.severity || 'info'} variant="filled">
           {message?.text}
         </Alert>
       </Snackbar>

@@ -44,7 +44,10 @@ pub async fn login(
     info!("🔄 Attempting login for user: {}", username_clone);
 
     let request_body = AuthRequest { username, password };
-    info!("📩 Request JSON: {}", serde_json::to_string(&request_body).unwrap());
+    info!(
+        "📩 Request JSON: {}",
+        serde_json::to_string(&request_body).unwrap()
+    );
 
     let response = client
         .post(login_url)
@@ -56,7 +59,10 @@ pub async fn login(
         .map_err(|e| format!("❌ Network error: {e}"))?;
 
     let status = response.status();
-    let response_text = response.text().await.unwrap_or_else(|_| "No response body".to_string());
+    let response_text = response
+        .text()
+        .await
+        .unwrap_or_else(|_| "No response body".to_string());
 
     info!("📡 Response Status: {:?}", status);
     info!("📜 Response Body: {}", response_text);
@@ -74,10 +80,16 @@ pub async fn login(
     } else {
         let error_message = serde_json::from_str::<serde_json::Value>(&response_text)
             .ok()
-            .and_then(|json| json.get("message").and_then(|m| m.as_str().map(|s| s.to_string())))
+            .and_then(|json| {
+                json.get("message")
+                    .and_then(|m| m.as_str().map(|s| s.to_string()))
+            })
             .unwrap_or_else(|| "Unknown error".to_string());
 
-        error!("🚫 Login failed for user {}: {}", username_clone, error_message);
+        error!(
+            "🚫 Login failed for user {}: {}",
+            username_clone, error_message
+        );
         Err(error_message)
     }
 }
@@ -100,7 +112,10 @@ pub async fn register(
         role: "user".to_string(),
     };
 
-    info!("📤 Request JSON: {}", serde_json::to_string(&request_body).unwrap());
+    info!(
+        "📤 Request JSON: {}",
+        serde_json::to_string(&request_body).unwrap()
+    );
 
     let response = client
         .post(register_url)
@@ -124,12 +139,16 @@ pub async fn register(
         info!("✅ Registration succeeded. Proceeding to login.");
 
         // Automatically login after registration
-        login(state, username, password).await
+        login(state, username, password)
+            .await
             .map(|_| "Registration and login successful!".to_string())
     } else {
         let maybe_msg = serde_json::from_str::<serde_json::Value>(&response_text)
             .ok()
-            .and_then(|v| v.get("message").and_then(|m| m.as_str().map(|s| s.to_string())))
+            .and_then(|v| {
+                v.get("message")
+                    .and_then(|m| m.as_str().map(|s| s.to_string()))
+            })
             .unwrap_or_else(|| "Registration failed. Try again.".to_string());
 
         error!("🚫 Registration failed: {}", maybe_msg);

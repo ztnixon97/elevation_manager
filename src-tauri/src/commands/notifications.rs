@@ -2,18 +2,18 @@
 
 use crate::auth::login::AuthState;
 use crate::utils::{
-    get_auth_header,            // for Tauri commands
-    get_auth_header_internal,   // for internal/polling
+    get_auth_header,          // for Tauri commands
+    get_auth_header_internal, // for internal/polling
 };
-use log::{error, info, debug};
+use log::{debug, error, info};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
+use tauri::{Emitter, State, Window};
+use tauri_plugin_notification::{self, NotificationExt, PermissionState};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use tauri::{State, Window, Emitter};
-use tauri_plugin_notification::{self, NotificationExt, PermissionState};
 
 // ======================
 // === Data Structures ==
@@ -246,8 +246,12 @@ pub async fn dismiss_all_notifications(state: State<'_, AuthState>) -> Result<St
         debug!("Response: {response_text}");
         Ok(response_text)
     } else {
-        error!("Failed to dismiss all notifications. Status: {status:?}, Response: {response_text}");
-        Err(format!("Failed to dismiss all notifications: {response_text:?}"))
+        error!(
+            "Failed to dismiss all notifications. Status: {status:?}, Response: {response_text}"
+        );
+        Err(format!(
+            "Failed to dismiss all notifications: {response_text:?}"
+        ))
     }
 }
 
@@ -366,47 +370,50 @@ pub async fn start_notification_polling(
                         // If we have new notifications, fetch them
                         if unread_count > last_count && last_count > 0 {
                             match get_notifications_internal(&state_clone).await {
-                                Ok(notif_json) => match serde_json::from_str::<
-                                    NotificationResponse,
-                                >(&notif_json)
-                                {
-                                    Ok(notif_resp) => {
-                                        // Take as many new notifs as the difference
-                                        let added = (unread_count - last_count) as usize;
-                                        let new_notifs = &notif_resp.data
-                                            [..added.min(notif_resp.data.len())];
+                                Ok(notif_json) => {
+                                    match serde_json::from_str::<NotificationResponse>(&notif_json)
+                                    {
+                                        Ok(notif_resp) => {
+                                            // Take as many new notifs as the difference
+                                            let added = (unread_count - last_count) as usize;
+                                            let new_notifs = &notif_resp.data
+                                                [..added.min(notif_resp.data.len())];
 
-                                        for notif in new_notifs {
-                                            let title = &notif.notification.title;
-                                            let body =
-                                                notif.notification.body.clone().unwrap_or_default();
+                                            for notif in new_notifs {
+                                                let title = &notif.notification.title;
+                                                let body = notif
+                                                    .notification
+                                                    .body
+                                                    .clone()
+                                                    .unwrap_or_default();
 
-                                            // Show system notification
-                                            if let Err(e) = show_system_notification(
-                                                window_clone.clone(),
-                                                title.clone(),
-                                                body,
-                                            )
-                                            .await
-                                            {
-                                                error!(
-                                                    "Failed to show system notification: {e}"
-                                                );
-                                            }
+                                                // Show system notification
+                                                if let Err(e) = show_system_notification(
+                                                    window_clone.clone(),
+                                                    title.clone(),
+                                                    body,
+                                                )
+                                                .await
+                                                {
+                                                    error!(
+                                                        "Failed to show system notification: {e}"
+                                                    );
+                                                }
 
-                                            // Emit event for the app
-                                            if let Err(e) =
-                                                window_clone.emit("new_notification", notif)
-                                            {
-                                                error!("Failed to emit new notification event: {e}");
+                                                // Emit event for the app
+                                                if let Err(e) =
+                                                    window_clone.emit("new_notification", notif)
+                                                {
+                                                    error!("Failed to emit new notification event: {e}");
+                                                }
                                             }
                                         }
+                                        Err(e) => {
+                                            error!("Failed to parse notifications: {e}");
+                                            error_count += 1;
+                                        }
                                     }
-                                    Err(e) => {
-                                        error!("Failed to parse notifications: {e}");
-                                        error_count += 1;
-                                    }
-                                },
+                                }
                                 Err(e) => {
                                     error!("Failed to fetch notifications: {e}");
                                     error_count += 1;
@@ -487,25 +494,26 @@ pub async fn manual_refresh_notifications(
 
                 // 2) Get full notifications
                 match get_notifications_internal(&state).await {
-                    Ok(notif_json) => match serde_json::from_str::<NotificationResponse>(&notif_json)
-                    {
-                        Ok(notif_resp) => {
-                            // Emit event with full notifications
-                            if let Err(e) =
-                                window.emit("notifications_refreshed", &notif_resp.data)
-                            {
-                                error!("Failed to emit notifications refresh event: {e}");
-                                return Err(format!("Failed to notify frontend: {e}"));
-                            }
+                    Ok(notif_json) => {
+                        match serde_json::from_str::<NotificationResponse>(&notif_json) {
+                            Ok(notif_resp) => {
+                                // Emit event with full notifications
+                                if let Err(e) =
+                                    window.emit("notifications_refreshed", &notif_resp.data)
+                                {
+                                    error!("Failed to emit notifications refresh event: {e}");
+                                    return Err(format!("Failed to notify frontend: {e}"));
+                                }
 
-                            info!("Manual refresh completed successfully");
-                            Ok(())
+                                info!("Manual refresh completed successfully");
+                                Ok(())
+                            }
+                            Err(e) => {
+                                error!("Failed to parse notifications: {e}");
+                                Err(format!("Failed to parse notifications: {e}"))
+                            }
                         }
-                        Err(e) => {
-                            error!("Failed to parse notifications: {e}");
-                            Err(format!("Failed to parse notifications: {e}"))
-                        }
-                    },
+                    }
                     Err(e) => {
                         error!("Failed to fetch notifications: {e}");
                         Err(format!("Failed to fetch notifications: {e}"))

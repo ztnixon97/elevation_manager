@@ -20,7 +20,9 @@ import TeamDashboard from "./pages/TeamDashboard/TeamDashboard";
 import ReviewsPage from "./pages/ReviewsPage";
 import ProductsPage from "./pages/ProductsPage/ProductsPage";
 import ProductDetailsPage from "./pages/ProductDetailsPage.tsx";
-import CreateReviewPage from "./pages/CreraateReviewPage.tsx"; 
+import CreateReviewPage from "./pages/CreraateReviewPage.tsx";
+import ReviewEditor from './components/ReviewEditor';
+
 const queryClient = new QueryClient();
 
 // Component to handle conditional sidebar rendering
@@ -66,6 +68,7 @@ function AppLayout() {
           <Route path="/products" element={isAuthenticated ? <ProductsPage /> : <Login /> } />
           <Route path="/products/:productId" element= {<ProductDetailsPage /> } />
           <Route path="/reviews/create/:productId" element={<CreateReviewPage />} />
+          <Route path="/reviews/:reviewId" element={<ReviewEditor />} />
           {/* Redirect to login if not authenticated */}
         </Routes>
       </Box>

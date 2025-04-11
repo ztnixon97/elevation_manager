@@ -1,15 +1,12 @@
 use crate::auth::login::AuthState;
 use crate::utils::get_auth_header;
+use log::{debug, error, info};
 use reqwest::Client;
-use log::{error, info, debug};
 use serde_json::Value;
 use tauri::State;
 
-#[tauri::command(rename_all="snake_case")]
-pub async fn delete_user(
-    state: State<'_, AuthState>,
-    user_id: i32,
-) -> Result<String, String> {
+#[tauri::command(rename_all = "snake_case")]
+pub async fn delete_user(state: State<'_, AuthState>, user_id: i32) -> Result<String, String> {
     let client = Client::new();
     let url = format!("http://localhost:3000/users/{user_id}");
 
@@ -34,7 +31,6 @@ pub async fn delete_user(
         Err(format!("Failed to delete user: {body}"))
     }
 }
-
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn update_user(
@@ -64,11 +60,14 @@ pub async fn update_user(
         info!("✅ Successfully updated user {}", user_id);
         Ok(format!("User {} updated successfully", user_id))
     } else {
-        error!("🚫 Failed to update user. Status: {:?}, Body: {}", status, body);
+        error!(
+            "🚫 Failed to update user. Status: {:?}, Body: {}",
+            status, body
+        );
         Err(format!("Failed to update user: {}", body))
     }
 }
-#[tauri::command(rename_all="snake_case")]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn lock_user(
     state: State<'_, AuthState>,
     user_id: i32,
@@ -105,7 +104,7 @@ pub async fn lock_user(
     }
 }
 
-#[tauri::command(rename_all="snake_case")]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn get_user_teams(state: State<'_, AuthState>) -> Result<String, String> {
     let client = Client::new();
     let url = "http://localhost:3000/users/me/teams";
@@ -119,16 +118,21 @@ pub async fn get_user_teams(state: State<'_, AuthState>) -> Result<String, Strin
         .send()
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
-    
+
     let status = response.status();
-    let body = response.text().await.unwrap_or_else(|_| "Failed to read response".to_string());
+    let body = response
+        .text()
+        .await
+        .unwrap_or_else(|_| "Failed to read response".to_string());
 
     if status.is_success() {
         info!("Successfully fetched user teams: {}", body);
         Ok(body)
     } else {
-        error!("Failed to fetch user teams. Status: {:?}, Body: {}", status, body);
+        error!(
+            "Failed to fetch user teams. Status: {:?}, Body: {}",
+            status, body
+        );
         Err(format!("Failed to fetch user teams: {}", body))
     }
 }
-
