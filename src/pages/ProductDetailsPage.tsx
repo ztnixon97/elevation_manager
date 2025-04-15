@@ -16,7 +16,32 @@ import {
   List,
   Card,
   CardContent,
+  Snackbar,
 } from '@mui/material';
+
+// Import Timeline components from @mui/lab
+import {
+  Timeline,
+  TimelineItem,
+  TimelineOppositeContent,
+  TimelineSeparator,
+  TimelineConnector,
+  TimelineContent,
+  TimelineDot
+} from '@mui/lab';
+
+// Import Icons
+import TimelineIcon from '@mui/icons-material/Timeline';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CreateIcon from '@mui/icons-material/Create';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbDownIcon from '@mui/icons-material/ThumbDown';
+import PublishIcon from '@mui/icons-material/Publish';
+import LoopIcon from '@mui/icons-material/Loop';
+import ErrorIcon from '@mui/icons-material/Error';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import EditIcon from '@mui/icons-material/Edit';
 
 // Import all OpenLayers dependencies
 import 'ol/ol.css';
@@ -64,6 +89,18 @@ interface Review {
   content?: string;
 }
 
+interface TimelineEvent {
+  type: 'creation' | 'review' | 'status_change' | 'acceptance' | 'publication';
+  date: Date;
+  title: string;
+  description: string;
+  status?: string;
+  icon: React.ReactNode;
+  // Only use valid color values
+  color: "primary" | "secondary" | "error" | "info" | "success" | "warning" | undefined;
+  review?: Review;
+}
+
 const ProductDetailPage: React.FC = () => {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
@@ -73,6 +110,8 @@ const ProductDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; severity: 'success' | 'error' } | null>(null);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
 
   // DOM element for the map
   const mapElement = useRef<HTMLDivElement>(null);
@@ -118,6 +157,138 @@ const ProductDetailPage: React.FC = () => {
       fetchProductDetails();
     }
   }, [productId]);
+
+  // Generate timeline events when product or reviews change
+  useEffect(() => {
+    if (!product) return;
+
+    const events: TimelineEvent[] = [];
+
+    // Add product creation event
+    events.push({
+      type: 'creation',
+      date: new Date(product.created_at),
+      title: 'Product Created',
+      description: `${product.site_id} was registered in the system`,
+      status: product.status,
+      icon: <CreateIcon />,
+      color: 'primary',
+    });
+
+    // Add events from reviews in chronological order
+    const sortedReviews = [...reviews].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    let prevStatus = product.status;
+
+    sortedReviews.forEach(review => {
+      // Add review event
+      let reviewIcon = <AssignmentIcon />;
+      let reviewColor: "primary" | "secondary" | "error" | "info" | "success" | "warning" | undefined = 'info';
+
+      // Set icon and color based on review status
+      switch(review.review_status.toLowerCase()) {
+        case 'approved':
+          reviewIcon = <ThumbUpIcon />;
+          reviewColor = 'success';
+          break;
+        case 'rejected':
+          reviewIcon = <ThumbDownIcon />;
+          reviewColor = 'error';
+          break;
+        case 'pending':
+          reviewIcon = <AssignmentIcon />;
+          reviewColor = 'warning';
+          break;
+        default:
+          reviewIcon = <EditIcon />;
+          reviewColor = 'info';
+      }
+
+      events.push({
+        type: 'review',
+        date: new Date(review.created_at),
+        title: `Review ${review.review_status}`,
+        description: `Review #${review.id} ${review.reviewer_name ? `by ${review.reviewer_name}` : ''}`,
+        icon: reviewIcon,
+        color: reviewColor,
+        review: review,
+      });
+
+      // Add status change event if the status changed
+      if (review.product_status && review.product_status !== prevStatus) {
+        let statusIcon = <HourglassEmptyIcon />;
+        let statusColor: "primary" | "secondary" | "error" | "info" | "success" | "warning" | undefined = 'info';
+
+        // Set icon and color based on product status
+        switch(review.product_status.toLowerCase()) {
+          case 'rejected':
+            statusIcon = <ErrorIcon />;
+            statusColor = 'error';
+            break;
+          case 'in_progress':
+            statusIcon = <LoopIcon />;
+            statusColor = 'warning';
+            break;
+          case 'completed':
+          case 'accepted':
+            statusIcon = <CheckCircleIcon />;
+            statusColor = 'success';
+            break;
+          case 'in_review':
+            statusIcon = <AssignmentIcon />;
+            statusColor = 'info';
+            break;
+          default:
+            statusIcon = <HourglassEmptyIcon />;
+            statusColor = 'info'; // Changed from 'default' to 'info'
+        }
+
+        events.push({
+          type: 'status_change',
+          date: new Date(review.created_at),
+          title: 'Status Changed',
+          description: `Product status changed from ${prevStatus} to ${review.product_status}`,
+          status: review.product_status,
+          icon: statusIcon,
+          color: statusColor,
+          review: review,
+        });
+
+        prevStatus = review.product_status;
+      }
+    });
+
+    // Add acceptance event if present
+    if (product.acceptance_date) {
+      events.push({
+        type: 'acceptance',
+        date: new Date(product.acceptance_date),
+        title: 'Product Accepted',
+        description: 'Final acceptance of the product',
+        icon: <CheckCircleIcon />,
+        color: 'success',
+      });
+    }
+
+    // Add publication event if present
+    if (product.publish_date) {
+      events.push({
+        type: 'publication',
+        date: new Date(product.publish_date),
+        title: 'Product Published',
+        description: 'Product made available to clients',
+        icon: <PublishIcon />,
+        color: 'success',
+      });
+    }
+
+    // Sort all events chronologically
+    events.sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    setTimelineEvents(events);
+  }, [product, reviews]);
   
   // Initialize the map after render when data is available
   const initializeMap = useCallback(() => {
@@ -272,9 +443,9 @@ const ProductDetailPage: React.FC = () => {
     // Navigate to review creation page
     navigate(`/reviews/create/${product.id}`);
   };
-  const handleViewReview = (reviewId: number) => {
-    
-    navigate(`/reviews/${reviewId}`);
+
+  const handleViewReview = (review: Review) => {
+    navigate(`/reviews/${review.id}`);
   };
 
   if (loading) {
@@ -401,8 +572,8 @@ const ProductDetailPage: React.FC = () => {
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={activeTab} onChange={handleTabChange}>
             <Tab label="Reviews" />
+            <Tab label="Timeline" icon={<TimelineIcon />} iconPosition="start" />
             <Tab label="Metadata" />
-            <Tab label="History" />
           </Tabs>
         </Box>
 
@@ -432,11 +603,11 @@ const ProductDetailPage: React.FC = () => {
                               size="small"
                               label={review.review_status}
                               color={
-                                review.review_status === 'approved'
+                                review.review_status.toLowerCase() === 'approved'
                                   ? 'success'
-                                  : review.review_status === 'rejected'
+                                  : review.review_status.toLowerCase() === 'rejected'
                                   ? 'error'
-                                  : review.review_status === 'pending'
+                                  : review.review_status.toLowerCase() === 'pending'
                                   ? 'warning'
                                   : 'default'
                               }
@@ -456,9 +627,12 @@ const ProductDetailPage: React.FC = () => {
                         <Button
                           size="small"
                           sx={{ mt: 1 }}
-                          onClick={() => handleViewReview(review.id)}
+                          onClick={() => handleViewReview(review)}
                         >
-                          View Full Review
+                          {review.review_status.toLowerCase() === 'draft' || 
+                           review.review_status.toLowerCase() === 'rejected'
+                            ? 'Edit Review'
+                            : 'View Review'}
                         </Button>
                       </CardContent>
                     </Card>
@@ -471,24 +645,77 @@ const ProductDetailPage: React.FC = () => {
           {activeTab === 1 && (
             <Box>
               <Typography variant="h6" gutterBottom>
-                Product Metadata
+                Product Timeline
               </Typography>
-              <pre>{JSON.stringify(product, null, 2)}</pre>
+              
+              <Timeline position="alternate">
+                {timelineEvents.map((event, index) => (
+                  <TimelineItem key={`${event.type}-${index}`}>
+                    <TimelineOppositeContent color="text.secondary">
+                      {format(event.date, 'MMM d, yyyy h:mm a')}
+                    </TimelineOppositeContent>
+                    <TimelineSeparator>
+                      {/* Fix: Use valid color values for MUI TimelineDot */}
+                      <TimelineDot color={event.color}>
+                        {event.icon}
+                      </TimelineDot>
+                      {index < timelineEvents.length - 1 && <TimelineConnector />}
+                    </TimelineSeparator>
+                    <TimelineContent>
+                      <Typography variant="h6" component="span">
+                        {event.title}
+                      </Typography>
+                      <Typography>
+                        {event.description}
+                      </Typography>
+                      {event.status && (
+                        <Chip 
+                          size="small" 
+                          label={event.status} 
+                          sx={{ mt: 1 }}
+                        />
+                      )}
+                      {event.review && (
+                        <Button 
+                          size="small" 
+                          variant="outlined" 
+                          sx={{ mt: 1, display: 'block' }}
+                          onClick={() => handleViewReview(event.review!)}
+                        >
+                          View Details
+                        </Button>
+                      )}
+                    </TimelineContent>
+                  </TimelineItem>
+                ))}
+              </Timeline>
             </Box>
           )}
 
           {activeTab === 2 && (
             <Box>
               <Typography variant="h6" gutterBottom>
-                Product History
+                Product Metadata
               </Typography>
-              <Typography color="text.secondary">
-                Product created on {format(parseISO(product.created_at), 'MMM d, yyyy')}
-              </Typography>
+              <pre>{JSON.stringify(product, null, 2)}</pre>
             </Box>
           )}
         </Box>
       </Paper>
+
+      {/* Message Snackbar */}
+      {message && (
+        <Snackbar
+          open={!!message}
+          autoHideDuration={6000}
+          onClose={() => setMessage(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert severity={message.severity} onClose={() => setMessage(null)}>
+            {message.text}
+          </Alert>
+        </Snackbar>
+      )}
     </Box>
   );
 };

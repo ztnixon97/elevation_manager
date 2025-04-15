@@ -1,7 +1,6 @@
 use crate::auth::login::AuthState;
-use log::{debug, error, info};
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use log::{error, info};
+use serde::Serialize;
 use tauri::State;
 
 pub async fn get_auth_header(state: &State<'_, AuthState>) -> Result<String, String> {

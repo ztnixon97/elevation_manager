@@ -8,6 +8,9 @@ import {
   Alert,
   Typography,
   Paper,
+  Link,
+  Divider,
+  Stack,
 } from "@mui/material";
 import "./Login.css";
 
@@ -43,84 +46,149 @@ const Login = () => {
       }
     } catch (err) {
       console.error("Auth error:", err);
-      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
+      
+      // Better error handling to extract message from API response
+      let errorMessage = "An unexpected error occurred.";
+      
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (typeof err === 'string') {
+        try {
+          // Try to parse the error as JSON
+          const parsedError = JSON.parse(err);
+          
+          // Extract the message field from the response
+          if (parsedError.message) {
+            errorMessage = parsedError.message;
+          } else if (parsedError.errors?.error) {
+            errorMessage = parsedError.errors.error;
+          }
+        } catch (parseError) {
+          // If parsing fails, use the original error string
+          errorMessage = err;
+        }
+      }
+      
+      setError(errorMessage);
     }
   };
 
   return (
-    <Box className="login-container">
-      <Paper className="login-box" elevation={3}>
-        <Typography variant="h5" fontWeight="bold" gutterBottom>
-          {isRegistering ? "Register" : "Login"}
-        </Typography>
+    <Box className="login-page">
+      <Box className="login-container">
+        <Paper className="login-box" elevation={3}>
+          {/* Enhanced Title Section */}
+          <Box className="login-title">
+            <Typography 
+              variant="h4" 
+              fontWeight="bold"
+              color="primary"
+              className="app-title"
+            >
+              TERRA
+            </Typography>
+            <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+              Terrain Enterprise Review & Reporting Application
+            </Typography>
+          </Box>
 
-        <form onSubmit={handleAuth}>
-          <TextField
-            label="Username"
-            variant="outlined"
-            fullWidth
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            sx={{ mb: 2 }}
-            required
-          />
+          <Divider sx={{ my: 2 }} />
 
-          <TextField
-            label="Password"
-            variant="outlined"
-            type="password"
-            fullWidth
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            sx={{ mb: 2 }}
-            required
-          />
+          <Typography variant="h6" fontWeight="bold" gutterBottom>
+            {isRegistering ? "Create Account" : "Welcome Back"}
+          </Typography>
 
-          {isRegistering && (
+          <form onSubmit={handleAuth}>
             <TextField
-              label="Confirm Password"
+              label="Username"
               variant="outlined"
-              type="password"
               fullWidth
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               sx={{ mb: 2 }}
               required
             />
-          )}
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
+            <TextField
+              label="Password"
+              variant="outlined"
+              type="password"
+              fullWidth
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              sx={{ mb: 2 }}
+              required
+            />
+
+            {isRegistering && (
+              <TextField
+                label="Confirm Password"
+                variant="outlined"
+                type="password"
+                fullWidth
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                sx={{ mb: 2 }}
+                required
+              />
+            )}
+
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+
+            <Button
+              variant="contained"
+              color="primary"
+              fullWidth
+              type="submit"
+              sx={{ mb: 2 }}
+            >
+              {isRegistering ? "Sign Up" : "Login"}
+            </Button>
+          </form>
 
           <Button
-            variant="contained"
-            color="primary"
+            variant="text"
             fullWidth
-            type="submit"
-            sx={{ mb: 2 }}
+            onClick={() => {
+              setIsRegistering(!isRegistering);
+              setError(null);
+              setPassword("");
+              setConfirmPassword("");
+            }}
           >
-            {isRegistering ? "Sign Up" : "Login"}
+            {isRegistering
+              ? "Already have an account? Login"
+              : "Don't have an account? Register"}
           </Button>
-        </form>
-
-        <Button
-          variant="text"
-          fullWidth
-          onClick={() => {
-            setIsRegistering(!isRegistering);
-            setError(null);
-            setPassword("");
-            setConfirmPassword("");
-          }}
-        >
-          {isRegistering
-            ? "Already have an account? Login"
-            : "Don't have an account? Register"}
-        </Button>
-      </Paper>
+          
+          {/* Footer with additional information */}
+          <Box className="login-footer" sx={{ mt: 3, pt: 2, borderTop: "1px solid #eee" }}>
+            <Stack spacing={1} sx={{ textAlign: "center" }}>
+              <Typography variant="caption" color="text.secondary">
+                Version 1.0.0 • © 2025 Zac Nixon
+              </Typography>
+              <Box>
+                <Link href="#" underline="hover" sx={{ mx: 1 }} fontSize="small">
+                  Help
+                </Link>
+                <Link href="#" underline="hover" sx={{ mx: 1 }} fontSize="small">
+                  Privacy
+                </Link>
+                <Link href="#" underline="hover" sx={{ mx: 1 }} fontSize="small">
+                  Terms
+                </Link>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Developed by Your Name • <Link href="mailto:support@example.com">support@example.com</Link>
+              </Typography>
+            </Stack>
+          </Box>
+        </Paper>
+      </Box>
     </Box>
   );
 };

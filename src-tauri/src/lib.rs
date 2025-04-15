@@ -11,12 +11,9 @@ use commands::reviews::*;
 use commands::team::*;
 use commands::users::*;
 use commands::userteams::*;
-use log::info;
+use commands::contracts::*;
 use std::sync::Arc;
-use tauri::State;
-use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification;
-use tokio::sync::Mutex;
 #[tokio::main]
 pub async fn run() {
     tauri::Builder::default()
@@ -90,6 +87,13 @@ pub async fn run() {
             submit_review_from_file,
             update_review_from_file,
             sync_review_from_file,
+            get_pending_reviews_for_team_lead,
+            delete_review,
+            delete_product_assignment,
+            get_product_assignments,
+            get_contracts,
+            get_contract_task_orders,
+            get_contract_details,
         ])
         .setup(|_app| {
             log::info!("Tauri app initialized successfully!");

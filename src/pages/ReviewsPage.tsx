@@ -1,5 +1,5 @@
 // src/pages/ReviewsPage.tsx
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { 
   Box, 
   Typography, 
@@ -44,6 +44,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { format, parseISO } from 'date-fns';
 import { AuthContext } from '../context/AuthContext';
 import ReviewEditor from '../components/ReviewEditor';
+import ReviewViewer from '../components/ReviewViewer';
 import { useNavigate } from 'react-router-dom';
 
 interface Review {
@@ -73,7 +74,7 @@ interface MessageState {
 
 // Review status colors
 const getStatusColor = (status: string): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
-  switch (status) {
+  switch (status.toLowerCase()) {
     case 'draft': return 'default';
     case 'pending': return 'warning';
     case 'approved': return 'success';
@@ -100,16 +101,10 @@ const ReviewsPage: React.FC = () => {
   const [reviewContent, setReviewContent] = useState<string>('');
   const [isTeamLead, setIsTeamLead] = useState<boolean>(false);
   const [draftContent, setDraftContent] = useState<string | null>(null);
-  const navigate = useNavigate();
-  
-  useEffect(() => {
-    // Set isTeamLead based on user role
-    setIsTeamLead(userRole === 'admin' || userRole === 'team_lead');
-    
-    // Load data on component mount
-    fetchData();
-  }, [userRole]);
+  const [draftVersion, setDraftVersion] = useState<number>(0);
+  const dataLoadedRef = useRef<Boolean>(false); // Track if data has been loaded
 
+  const navigate = useNavigate();
   const fetchData = async (): Promise<void> => {
     setLoading(true);
     try {
@@ -126,27 +121,41 @@ const ReviewsPage: React.FC = () => {
       }
 
       // If user is team lead or admin, fetch pending reviews
-      if (isTeamLead) {
-        // This would typically fetch reviews where status is 'pending'
-        // For now, we'll just use a filter on allReviews
-        const allReviewsResponse = await invoke<string | object>('get_all_reviews');
-        const allReviewsData = typeof allReviewsResponse === 'string' 
-          ? JSON.parse(allReviewsResponse) 
-          : allReviewsResponse;
-        
-        if (allReviewsData.data) {
-          const enrichedAllReviews = await enrichReviewsWithProductNames(allReviewsData.data);
-          setAllReviews(enrichedAllReviews);
+      console.log('userRole:', userRole);
+      if (userRole === 'admin' || userRole === 'team_lead') {
+
+        try {
+          const pendingReviewsResponse = await invoke<string | object>('get_pending_reviews_for_team_lead');
+          console.log('Pending Reviews Response:', pendingReviewsResponse);
           
-          const pendingOnly = enrichedAllReviews.filter(
-            (review: Review) => review.review_status === 'pending'
-          );
-          setPendingReviews(pendingOnly);
+          // Parse the response if it's a string
+          const pendingReviewsData = typeof pendingReviewsResponse === 'string' 
+            ? JSON.parse(pendingReviewsResponse) 
+            : pendingReviewsResponse;
+          
+          // Check if we have data and it's an array
+          if (pendingReviewsData && Array.isArray(pendingReviewsData)) {
+            // Use the array directly
+            const enrichedPendingReviews = await enrichReviewsWithProductNames(pendingReviewsData);
+            setPendingReviews(enrichedPendingReviews);
+          }
+          // Also check for the common API response format with data property
+          else if (pendingReviewsData && pendingReviewsData.data && Array.isArray(pendingReviewsData.data)) {
+            const enrichedPendingReviews = await enrichReviewsWithProductNames(pendingReviewsData.data);
+            setPendingReviews(enrichedPendingReviews);
+          }
+          else {
+            console.warn('Unexpected format for pending reviews', pendingReviewsData);
+            setPendingReviews([]);
+          }
+        } catch (err) {
+          console.error('Error fetching pending reviews:', err);
+          setPendingReviews([]);
         }
       }
 
       // Fetch available products for creating new reviews
-      const productsResponse = await invoke<string | object>('get_all_products');
+      const productsResponse = await invoke<string | object>('get_user_products');
       const productsData = typeof productsResponse === 'string' 
         ? JSON.parse(productsResponse) 
         : productsResponse;
@@ -165,37 +174,57 @@ const ReviewsPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    setIsTeamLead(userRole === 'admin' || userRole === 'team_lead');
+    if (!dataLoadedRef.current) {
+      console.log('Fetching data (first time only)');
+      fetchData();
+      dataLoadedRef.current = true;
+    }
+  }, [userRole]);
+  
+
+  // Add debug logging for active tab and pending reviews
+  useEffect(() => {
+    console.log('Active tab changed to:', activeTab);
+    console.log('pendingReviews count:', pendingReviews.length);
+  }, [activeTab, pendingReviews]);
+
+  
+
   // Helper to fetch product names for reviews
   const enrichReviewsWithProductNames = async (reviews: Review[]): Promise<Review[]> => {
     const enriched = await Promise.all(
       reviews.map(async (review) => {
         try {
-          // Fetch product details
-          const productResponse = await invoke<string | object>('get_product', { 
-            product_id: review.product_id 
+          const productResponse = await invoke<string | object>('get_product_details', {
+            product_id: review.product_id
           });
           const productData = typeof productResponse === 'string'
             ? JSON.parse(productResponse)
             : productResponse;
-            
+  
           const productName = productData.data?.product?.site_id || `Product #${review.product_id}`;
-          
+  
           return {
             ...review,
             product_name: productName,
+            review_status: review.review_status.toLowerCase(),  // <- normalize here
           };
         } catch (err) {
           console.error(`Failed to fetch product details for review ${review.id}:`, err);
           return {
             ...review,
             product_name: `Product #${review.product_id}`,
+            review_status: review.review_status.toLowerCase(),  // <- normalize here too
           };
         }
       })
     );
-    
+  
     return enriched;
   };
+  
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number): void => {
     setActiveTab(newValue);
@@ -259,55 +288,121 @@ const ReviewsPage: React.FC = () => {
     }
   };
   
-  const handleStartNewReview = async (): Promise<void> => {
-    if (!selectedProduct) return;
-    
-    // Get product name for display
-    const product = products.find(p => p.id === selectedProduct);
-    const productName = product ? product.site_id : `Product #${selectedProduct}`;
-    
-    // Check for local draft
-    const draftContent = await loadDraftLocally(selectedProduct);
-    
-    setSelectedReview({
-      product_id: selectedProduct,
-      product_name: productName,
-      // Default values for required fields
-      id: 0, // This will be assigned by the server
-      reviewer_id: 0, // This will be assigned by the server
-      review_status: 'draft',
-      product_status: 'pending_review',
-      review_path: '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    
-    setIsCreateDialogOpen(false);
-    setIsEditorOpen(true);
-  };
+  // First, modify the handleStartNewReview function:
+const handleStartNewReview = async (): Promise<void> => {
+  if (!selectedProduct) return;
+  
+  // Get product name for display
+  const product = products.find(p => p.id === selectedProduct);
+  const productName = product ? product.site_id : `Product #${selectedProduct}`;
+  
+  // Check for local draft
+  const content = await loadDraftLocally(selectedProduct);
+  setDraftContent(content || ''); // Ensure draftContent is at least an empty string, not null
+  
+  // Set the selected review with default values
+  setSelectedReview({
+    product_id: selectedProduct,
+    product_name: productName,
+    // Default values for required fields
+    id: 0, // This will be assigned by the server
+    reviewer_id: 0, // This will be assigned by the server
+    review_status: 'draft',
+    product_status: 'pending_review',
+    review_path: '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+  
+  // Close the product selection dialog and open the editor
+  setIsCreateDialogOpen(false);
+  setIsEditorOpen(true);
+  
+  console.log('Review editor should open with:', {
+    productId: selectedProduct,
+    productName,
+    draftContent: content ? 'Content loaded' : 'No content',
+  });
+};
 
   const handleEditReview = async (review: Review): Promise<void> => {
-    // Try to load any draft content first
-    await loadDraftLocally(review.product_id);
-    setSelectedReview(review);
-    setIsEditorOpen(true);
+    try {
+      setLoading(true);
+      
+      // Fetch the review content first
+      console.log('Fetching review content for ID:', review.id);
+      const response = await invoke<string | object>('get_review', { review_id: review.id });
+      console.log('Raw response type:', typeof response);
+      console.log('Raw response:', response);
+      
+      // Parse the response if it's a string
+      const data = typeof response === 'string' ? JSON.parse(response) : response;
+      console.log('Parsed data:', data);
+      
+      // Check for different possible response structures
+      let content = null;
+      if (data.data && data.data.content) {
+        content = data.data.content;
+        console.log('Found content in data.data.content');
+      } else if (data.content) {
+        content = data.content;
+        console.log('Found content in data.content');
+      } else if (data.review && data.review.content) {
+        content = data.review.content;
+        console.log('Found content in data.review.content');
+      } else {
+        console.warn('Could not find content in response:', data);
+        // Try to load any draft content from local storage
+        await loadDraftLocally(review.product_id);
+      }
+      
+      if (content) {
+        console.log('Content length:', content.length);
+        console.log('Content preview:', content.substring(0, 100));
+        setDraftContent(content);
+      }
+      
+      // Set the selected review
+      setSelectedReview(review);
+      
+      // Open the editor
+      setIsEditorOpen(true);
+    } catch (err) {
+      console.error('Failed to load review for editing:', err);
+      setMessage({
+        text: typeof err === 'string' ? err : 'Failed to load review for editing',
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleViewReview = async (review: Review): Promise<void> => {
-    setSelectedReview(review);
-    setLoading(true);
-    
     try {
-      const response = await invoke<string | object>('get_review', { review_id: review.id });
-      const data = typeof response === 'string'
-        ? JSON.parse(response)
-        : response;
+      setLoading(true);
+      setSelectedReview(review);
       
+      // Fetch the review content
+      const response = await invoke<string | object>('get_review', { review_id: review.id });
+      
+      // Parse the response if it's a string
+      const data = typeof response === 'string' ? JSON.parse(response) : response;
+      
+      console.log('View review data:', data); // Debug log
+      
+      // Check for different possible response structures
       if (data.data && data.data.content) {
         setReviewContent(data.data.content);
+      } else if (data.content) {
+        setReviewContent(data.content);
+      } else if (data.review && data.review.content) {
+        setReviewContent(data.review.content);
       } else {
+        console.warn('Could not find content in response:', data);
         setReviewContent('No content available');
       }
+      
       setIsDetailDialogOpen(true);
     } catch (err) {
       console.error('Failed to fetch review details:', err);
@@ -430,6 +525,7 @@ const ReviewsPage: React.FC = () => {
     setDraftContent(null);
     
     if (updated) {
+      dataLoadedRef.current = false; // Reset data loaded flag
       fetchData(); // Refresh data if review was updated
     }
   };
@@ -510,7 +606,7 @@ const ReviewsPage: React.FC = () => {
                 )}
                 
                 {/* Only show delete button for draft reviews */}
-                {review.review_status === 'draft' && (
+                {(review.review_status === 'draft' || review.review_status === 'rejected') && (
                   <IconButton 
                     edge="end" 
                     onClick={() => handleDeleteReview(review)}
@@ -582,7 +678,12 @@ const ReviewsPage: React.FC = () => {
         
         <Box sx={{ mt: 2 }}>
           {activeTab === 0 && renderReviewList(myReviews)}
-          {activeTab === 1 && isTeamLead && renderReviewList(pendingReviews)}
+          {activeTab === 1 && isTeamLead && (
+            <>
+              {console.log('Rendering pending reviews tab. Reviews:', pendingReviews)}
+              {renderReviewList(pendingReviews)}
+            </>
+          )}
           {activeTab === 2 && isTeamLead && renderReviewList(allReviews)}
         </Box>
       </Paper>
@@ -663,7 +764,12 @@ const ReviewsPage: React.FC = () => {
             </Box>
           ) : (
             <Box sx={{ mt: 2 }}>
-              <div dangerouslySetInnerHTML={{ __html: reviewContent }} />
+              {selectedReview && (
+                <ReviewViewer 
+                  review={selectedReview} 
+                  content={reviewContent} 
+                />
+              )}
             </Box>
           )}
         </DialogContent>
@@ -702,13 +808,19 @@ const ReviewsPage: React.FC = () => {
       
       {/* Review Editor Dialog */}
       <Dialog open={isEditorOpen} onClose={() => handleEditorClose()} maxWidth="lg" fullWidth>
+        <DialogTitle>
+          {selectedReview ? 
+            `Editing Review for ${selectedReview.product_name}` : 
+            'Create New Review'}
+        </DialogTitle>
         <DialogContent>
           {selectedReview && (
             <ReviewEditor
+              key={`editor-${selectedReview.product_id}-${Date.now()}`} // Add unique key to force re-render
               productId={selectedReview.product_id}
               productName={selectedReview.product_name}
               initialReview={selectedReview}
-              initialContent={draftContent}
+              initialContent={draftContent || ''} // Ensure we never pass null
               onReviewUpdated={() => handleEditorClose(true)}
               onSaveDraft={handleSaveDraft}
             />

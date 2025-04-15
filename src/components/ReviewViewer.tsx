@@ -1,4 +1,4 @@
-// src/components/ReviewViewer.jsx
+// src/components/ReviewViewer.tsx
 import React from 'react';
 import { Box, Paper, Typography, Chip } from '@mui/material';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -11,10 +11,11 @@ import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import './Tiptap.css';
 import { format, parseISO } from 'date-fns';
+import { ResizableImage } from './ResizeableImageExtension';
 
 // Review status colors
-const getStatusColor = (status) => {
-  switch (status) {
+const getStatusColor = (status: string): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
+  switch (status.toLowerCase()) {
     case 'draft': return 'default';
     case 'pending': return 'warning';
     case 'approved': return 'success';
@@ -23,12 +24,25 @@ const getStatusColor = (status) => {
   }
 };
 
-const ReviewViewer = ({ review, content }) => {
+interface ReviewViewerProps {
+  review: {
+    id: number;
+    product_id: number;
+    review_status: string;
+    product_status: string;
+    title?: string;
+    updated_at: string;
+    [key: string]: any;
+  };
+  content: string;
+}
+
+const ReviewViewer: React.FC<ReviewViewerProps> = ({ review, content }) => {
   // Configure the TipTap editor in read-only mode
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Image,
+      ResizableImage,
       Link.configure({
         openOnClick: true,
       }),

@@ -20,7 +20,6 @@ import {
   GridToolbarContainer,
 } from "@mui/x-data-grid";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import ReviewEditor from '../../components/ReviewEditor';
 
 // Fetch assigned products from backend with better error handling
 const fetchAssignedProducts = async () => {
@@ -112,7 +111,6 @@ const ProductsPage = () => {
   const [paginationModel, setPaginationModel] = useState({ pageSize: 10, page: 0 });
   const [message, setMessage] = useState<{ text: string; severity: "success" | "error" } | null>(null);
   const [activeTab, setActiveTab] = useState(0);
-  const [selectedProduct, setSelectedProduct] = useState<number | null>(null); // Track selected product for editing
 
   // Fetch assigned products using React Query
   const { 
@@ -157,28 +155,6 @@ const ProductsPage = () => {
       refetchAssigned();
     } else if (newValue === 1) {
       refetchAll();
-    }
-  };
-
-  const handleRowClick = async (params: any) => {
-    const productId = params.id;
-
-    try {
-      // Fetch draft review for the selected product
-      const response = await invoke('get_product_reviews', { product_id: productId });
-      const reviews = response.data;
-
-      // Check if there's a draft review
-      const draftReview = reviews.find((review: any) => review.review_status === 'Draft');
-      if (draftReview) {
-        // Navigate to ReviewEditor with the draft review
-        navigate(`/reviews/${draftReview.id}`);
-      } else {
-        setMessage({ text: 'No draft review found for this product.', severity: 'info' });
-      }
-    } catch (err) {
-      console.error('Error fetching reviews:', err);
-      setMessage({ text: 'Failed to fetch reviews for this product.', severity: 'error' });
     }
   };
 
@@ -228,19 +204,6 @@ const ProductsPage = () => {
       <GridToolbarQuickFilter />
     </GridToolbarContainer>
   );
-
-  if (selectedProduct) {
-    return (
-      <ReviewEditor
-        productId={selectedProduct}
-        productName={`Product #${selectedProduct}`}
-        onReviewUpdated={() => {
-          setSelectedProduct(null); // Return to ProductsPage after editing
-          queryClient.invalidateQueries(['assigned-products']);
-        }}
-      />
-    );
-  }
 
   return (
     <Box sx={{ p: 2 }}>
@@ -295,7 +258,7 @@ const ProductsPage = () => {
                       backgroundColor: 'action.hover',
                     }
                   }}
-                  onRowClick={handleRowClick} // Navigate to ReviewEditor on row click
+                  onRowClick={(params) => navigate(`/products/${params.id}`)}
                 />
               )}
             </>
@@ -337,7 +300,7 @@ const ProductsPage = () => {
                       backgroundColor: 'action.hover',
                     }
                   }}
-                  onRowClick={handleRowClick} // Navigate to ReviewEditor on row click
+                  onRowClick={(params) => navigate(`/products/${params.id}`)}
                 />
               )}
             </>

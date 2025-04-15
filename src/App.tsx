@@ -22,6 +22,8 @@ import ProductsPage from "./pages/ProductsPage/ProductsPage";
 import ProductDetailsPage from "./pages/ProductDetailsPage.tsx";
 import CreateReviewPage from "./pages/CreraateReviewPage.tsx";
 import ReviewEditor from './components/ReviewEditor';
+import ContractsPage from "./pages/ContractsPage.tsx";
+import ContractDetailsPage from "./pages/ContractDetailsPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +71,9 @@ function AppLayout() {
           <Route path="/products/:productId" element= {<ProductDetailsPage /> } />
           <Route path="/reviews/create/:productId" element={<CreateReviewPage />} />
           <Route path="/reviews/:reviewId" element={<ReviewEditor />} />
+          <Route path ="/contracts" element={isAuthenticated ? <ContractsPage /> : <Login />} />
+          <Route path = "/contracts/:contractId" element={isAuthenticated ? <ContractDetailsPage /> : <Login />} />
+          {/* Add more routes here */}
           {/* Redirect to login if not authenticated */}
         </Routes>
       </Box>

@@ -8,6 +8,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogContentText,
   DialogActions,
   TextField,
   Select,
@@ -31,6 +32,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import RateReviewIcon from '@mui/icons-material/RateReview';
+import CancelIcon from '@mui/icons-material/Cancel';
 
 interface ProductsPanelProps {
   teamId: number;
@@ -43,6 +45,7 @@ interface Product {
   status: string;
   product_type_id: number;
   assigned_to?: string;
+  assignment_id?: number;
 }
 
 interface ProductType {
@@ -67,6 +70,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [isUnassignDialogOpen, setIsUnassignDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   
   // Form states
@@ -115,6 +119,65 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
     }
   };
 
+  // Handle opening unassign dialog
+  const handleOpenUnassignDialog = (product: Product) => {
+    setSelectedProduct(product);
+    setIsUnassignDialogOpen(true);
+  };
+
+  // Handle unassigning a product
+  const handleUnassignProduct = async () => {
+    if (!selectedProduct || !selectedProduct.assigned_to) {
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      // Get active assignments for this product
+      const assignmentsResponse = await invoke<string>('get_product_assignments', { 
+        product_id: selectedProduct.id 
+      });
+      
+      const assignmentsData = JSON.parse(assignmentsResponse);
+      
+      if (!assignmentsData.data || assignmentsData.data.length === 0) {
+        throw new Error('No assignments found for this product');
+      }
+      
+      // Find the active assignment
+      const assignment = assignmentsData.data.find(a => a.status === 'active');
+      if (!assignment) {
+        throw new Error('No active assignment found for this product');
+      }
+      
+      // Use the existing delete_proudct_assignment function
+      await invoke('delete_product_assignment', { 
+        assignment_id: assignment.id 
+      });
+      
+      // Update local state
+      setProducts(products.map(p => 
+        p.id === selectedProduct.id 
+          ? { ...p, assigned_to: undefined } 
+          : p
+      ));
+      
+      setMessage({
+        text: 'Product unassigned successfully',
+        severity: 'success',
+      });
+    } catch (err) {
+      console.error('Failed to unassign product:', err);
+      setMessage({
+        text: typeof err === 'string' ? err : 'Failed to unassign product',
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+      setIsUnassignDialogOpen(false);
+    }
+  };
+
   // Columns for the products DataGrid
   const columns: GridColDef[] = [
     { field: 'site_id', headerName: 'Site ID', flex: 1 },
@@ -155,7 +218,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
     {
       field: 'actions',
       headerName: 'Actions',
-      width: 160,
+      width: 200,
       renderCell: (params) => (
         <Box>
           {isTeamLead && (
@@ -184,6 +247,20 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
               <RateReviewIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+          
+          {/* Add unassign button - only show if product is assigned */}
+          {params.row.assigned_to && (
+            <Tooltip title="Unassign Product">
+              <IconButton
+                size="small"
+                onClick={() => handleOpenUnassignDialog(params.row)}
+                color="warning"
+              >
+                <CancelIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          
           {isTeamLead && (
             <Tooltip title="Remove Product">
               <IconButton
@@ -298,7 +375,6 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
   };
   
   // Assign product to team member
-   // In handleAssignProduct function - update to pass the team_id
   const handleAssignProduct = async () => {
     if (!selectedProduct || assigneeId === 0) return;
   
@@ -349,7 +425,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
     }
   };
 
-  // In handleCheckoutProduct function - update to use the correct endpoint
+  // Handle checkout product
   const handleCheckoutProduct = async () => {
     if (!selectedProduct || !checkedOutReason) return;
   
@@ -384,6 +460,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
       setLoading(false);
     }
   }; 
+  
   // Submit review
   const handleSubmitReview = async () => {
     if (!selectedProduct || !reviewComment) return;
@@ -595,6 +672,34 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
             disabled={!reviewComment || loading}
           >
             Submit Review
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Unassign Confirmation Dialog */}
+      <Dialog
+        open={isUnassignDialogOpen}
+        onClose={() => setIsUnassignDialogOpen(false)}
+        aria-labelledby="unassign-dialog-title"
+        aria-describedby="unassign-dialog-description"
+      >
+        <DialogTitle id="unassign-dialog-title">Confirm Unassign</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="unassign-dialog-description">
+            Are you sure you want to unassign {selectedProduct?.site_id} from {selectedProduct?.assigned_to}?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsUnassignDialogOpen(false)} color="primary">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleUnassignProduct} 
+            color="warning" 
+            variant="contained"
+            disabled={loading}
+          >
+            Unassign
           </Button>
         </DialogActions>
       </Dialog>

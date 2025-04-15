@@ -32,6 +32,7 @@ import {
   DarkMode,
   LightMode,
   TextSnippet,
+  Gavel,
   Notifications as NotificationsIcon,
 } from "@mui/icons-material";
 import NotificationDrawer from "./NotificationDrawer";
@@ -87,9 +88,10 @@ const Sidebar: React.FC = () => {
   // Sidebar Links
   const navLinks = [
     { name: "Dashboard", url: "/dashboard", icon: <Home /> },
-    { name: "Products", url: "/products", icon: <Inventory /> },
     { name: "Teams", url: "/teams", icon: <Groups /> },
+    { name: "Products", url: "/products", icon: <Inventory /> },
     { name: "Reviews", url: "/reviews", icon: <VerifiedUser /> },
+    { name: "Contracts", url: "/contracts", icon: <Gavel /> },
     { name: "GraphQL", url: "/dev/graphql", icon: <TextSnippet /> },
     { 
       name: "Notifications", 

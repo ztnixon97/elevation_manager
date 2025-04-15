@@ -1,13 +1,8 @@
-use std::iter::Product;
-
 use crate::utils::get_auth_header;
-use crate::{
-    auth::{self, login::AuthState},
-    state,
-};
+use crate::auth::login::AuthState;
 use log::{debug, error, info};
 use reqwest::Client;
-use tauri::{http::status, State};
+use tauri:: State;
 
 #[tauri::command]
 pub async fn get_all_products(state: State<'_, AuthState>) -> Result<String, String> {
@@ -267,6 +262,78 @@ pub async fn get_product_details(
         );
         Err(format!(
             "Failed to retrieve product details: {:?}",
+            response_text
+        ))
+    }
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async  fn delete_product_assignment(
+    state: State<'_, AuthState>,
+    assignment_id: i32,
+) -> Result<String, String> {
+    let client = Client::new();
+    let auth_header = get_auth_header(&state).await?;
+    let url = format!("http://localhost:3000/product-assignments/{}", assignment_id);
+    info!("Deleting product assignment {assignment_id}...");
+    let response = client
+        .delete(&url)
+        .header("Authorization", auth_header)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Request failed: {}", e);
+            format!("Request failed: {e}")
+        })?;
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+    if status.is_success() {
+        info!("Successfully deleted product assignment.");
+        debug!("Response: {}", response_text);
+        Ok(response_text)
+    } else {
+        error!(
+            "Failed to delete product assignment. Status: {:?}, Response: {}",
+            status, response_text
+        );
+        Err(format!(
+            "Failed to delete product assignment: {:?}",
+            response_text
+        ))
+    }
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn get_product_assignments(
+    state: State<'_, AuthState>,
+    product_id: i32,
+) -> Result<String, String> {
+    let client = Client::new();
+    let auth_header = get_auth_header(&state).await?;
+    let url = format!("http://localhost:3000/products/{}/assignments", product_id);
+    info!("Getting assignments for product {product_id}...");
+    let response = client
+        .get(&url)
+        .header("Authorization", auth_header)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Request failed: {}", e);
+            format!("Request failed: {e}")
+        })?;
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+    if status.is_success() {
+        info!("Successfully retrieved product assignments.");
+        debug!("Response: {}", response_text);
+        Ok(response_text)
+    } else {
+        error!(
+            "Failed to get product assignments. Status: {:?}, Response: {}",
+            status, response_text
+        );
+        Err(format!(
+            "Failed to get product assignments: {:?}",
             response_text
         ))
     }

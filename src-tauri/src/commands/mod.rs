@@ -5,3 +5,4 @@ pub mod reviews;
 pub mod team;
 pub mod users;
 pub mod userteams;
+pub mod contracts;

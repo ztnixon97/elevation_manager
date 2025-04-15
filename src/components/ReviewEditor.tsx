@@ -1,5 +1,6 @@
 // src/components/ReviewEditor.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -20,6 +21,7 @@ import {
   SelectChangeEvent,
   AlertColor,
   Divider,
+  Chip,
 } from '@mui/material';
 import { invoke } from '@tauri-apps/api/core';
 import SaveIcon from '@mui/icons-material/Save';
@@ -27,6 +29,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import TableChartIcon from '@mui/icons-material/TableChart';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ImageIcon from '@mui/icons-material/Image';
 import LinkIcon from '@mui/icons-material/Link';
 import FormatBoldIcon from '@mui/icons-material/FormatBold';
@@ -76,7 +79,6 @@ const REVIEW_STATUS = {
 interface Review {
   id?: number;
   product_id: number;
-  title?: string;
   content?: string;
   product_status?: string;
   review_status?: string;
@@ -85,7 +87,6 @@ interface Review {
 }
 
 interface LocalDraft {
-  title: string;
   content: string;
   product_status: string;
   last_saved: string;
@@ -98,23 +99,25 @@ interface MessageState {
 
 interface MenuBarProps {
   editor: Editor | null;
+  readOnly?: boolean;
 }
 
 interface ReviewEditorProps {
-  productId: number;
+  productId?: number;
   productName?: string;
   onReviewUpdated?: () => void;
   initialReview?: Review | null;
-  initialContent?: string;  // New prop for draft content
-  onSaveDraft?: (content: string) => void;  // New prop for saving drafts
+  initialContent?: string;
+  onSaveDraft?: (content: string) => void;
+  readOnly?: boolean;
 }
 
-const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
+const MenuBar: React.FC<MenuBarProps> = ({ editor, readOnly = false }) => {
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isImageDialogOpen, setIsImageDialogOpen] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  if (!editor) {
+  if (!editor || readOnly) {
     return null;
   }
 
@@ -373,15 +376,27 @@ const prepareDirectoryStructure = async (productId: number) => {
 };
 
 const ReviewEditor: React.FC<ReviewEditorProps> = ({ 
-  productId, 
-  productName, 
+  productId: propProductId, 
+  productName: propProductName,
   onReviewUpdated = () => {},
   initialReview = null,
   initialContent = null,
-  onSaveDraft = null
+  onSaveDraft = null,
+  readOnly = false
 }) => {
+  const { reviewId } = useParams<{ reviewId: string }>();
+  const navigate = useNavigate();
+  
+  // State for loading
+  const [loading, setLoading] = useState<boolean>(!!reviewId);
+  
   // State for the review editor
-  const [reviewTitle, setReviewTitle] = useState<string>('');
+  const [productId, setProductId] = useState<number | undefined>(
+    propProductId || 
+    (initialReview?.product_id) || 
+    undefined
+  );
+  const [productName, setProductName] = useState<string | undefined>(propProductName);
   const [productStatus, setProductStatus] = useState<string>('InReview');
   const [reviewStatus, setReviewStatus] = useState<string>(REVIEW_STATUS.DRAFT);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -391,17 +406,17 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState<boolean>(false);
   const [dialogAction, setDialogAction] = useState<'load_draft' | 'submit' | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [reviewId, setReviewId] = useState<number | null>(null);
+  const [currentReviewId, setCurrentReviewId] = useState<number | null>(
+    initialReview?.id || (reviewId ? parseInt(reviewId, 10) : null)
+  );
+  const [isReadOnly, setIsReadOnly] = useState<boolean>(readOnly);
+  const [contentInitialized, setContentInitialized] = useState<boolean>(false);
   
-  // Reference to auto-save timer
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-
   // Configure the TipTap editor
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         // Exclude the default image extension
-        image: false,
       }),
       ResizableImage, // Use our custom resizable image extension
       Placeholder.configure({
@@ -418,111 +433,195 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
       TableCell,
     ],
     content: '',
-    onUpdate: ({ editor }) => {
-      // Start auto-save timer when content changes
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-      
-      autoSaveTimerRef.current = setTimeout(() => {
-        saveDraftLocally(editor.getHTML());
-      }, 3000); // Auto-save after 3 seconds of inactivity
-    },
+    editable: !isReadOnly,
   });
 
-  // Load initial content on component mount
+  // Fetch review details when reviewId is present
   useEffect(() => {
-    const loadLocalDraftFromFilesystem = async () => {
-      try {
-        // Try to load from filesystem first
-        const fsContent = await invoke<string>('load_review_draft', {
-          product_id: productId
-        }).catch(() => null); // Ignore errors if no draft exists
-        
-        if (fsContent && editor) {
-          editor.commands.setContent(fsContent);
-          return true;
-        }
-        return false;
-      } catch (err) {
-        console.error('Error loading draft from filesystem:', err);
-        return false;
-      }
-    };
-    
-    const loadLocalDraftFromBrowser = () => {
-      const draftKey = `review_draft_${productId}`;
-      const savedDraft = localStorage.getItem(draftKey);
+    const fetchReview = async () => {
+      if (!reviewId) return;
       
-      if (savedDraft) {
-        try {
-          const parsedDraft = JSON.parse(savedDraft) as LocalDraft;
-          setLocalDraft(parsedDraft);
-          
-          // Only load browser draft if we don't have a filesystem draft
-          if (!initialContent && !initialReview && editor) {
-            editor.commands.setContent(parsedDraft.content || '');
-            setReviewTitle(parsedDraft.title || '');
-            setProductStatus(parsedDraft.product_status || 'InReview');
-            return true;
-          }
-        } catch (err) {
-          console.error('Error parsing local draft:', err);
-          localStorage.removeItem(draftKey);
-        }
-      }
-      return false;
-    };
-    
-    const initializeEditor = async () => {
-      // Set from initialReview if available
-      if (initialReview) {
-        setReviewTitle(initialReview.title || '');
-        setProductStatus(initialReview.product_status || 'InReview');
-        setReviewStatus(initialReview.review_status || REVIEW_STATUS.DRAFT);
-        setReviewId(initialReview.id || null);
+      setLoading(true);
+      try {
+        console.log(`Fetching review with ID: ${reviewId}`);
+        const response = await invoke<string | object>('get_review', { review_id: parseInt(reviewId, 10) });
         
-        if (editor && initialReview.content) {
-          editor.commands.setContent(initialReview.content);
+        // Log the raw response for debugging
+        console.log("API response:", response);
+        
+        const data = typeof response === 'string' ? JSON.parse(response) : response;
+        console.log("Parsed data:", data);
+        
+        // Handle different response formats
+        let reviewDetails, content;
+        
+        if (data && data.review) {
+          reviewDetails = data.review;
+          content = data.content;
+        } else if (data && data.data && data.data.review) {
+          reviewDetails = data.data.review;
+          content = data.data.content;
+        } else {
+          throw new Error("Invalid response format");
+        }
+        
+        console.log("Review details:", reviewDetails);
+        
+        // Check for product_id
+        if (!reviewDetails.product_id) {
+          console.error("No product_id found in review:", reviewDetails);
+          setMessage({
+            text: 'Review data missing product ID. Try returning to products page.',
+            severity: 'error'
+          });
+          setLoading(false);
           return;
         }
-      }
-      
-      // Use initialContent if provided directly
-      if (initialContent && editor) {
-        editor.commands.setContent(initialContent);
-        return;
-      }
-      
-      // Otherwise try to load from filesystem
-      const filesystemLoaded = await loadLocalDraftFromFilesystem();
-      if (!filesystemLoaded) {
-        // Finally try browser storage
-        loadLocalDraftFromBrowser();
+        
+        // Update state with fetched review details
+        setCurrentReviewId(reviewDetails.id);
+        setProductId(reviewDetails.product_id);
+        console.log(`Setting product ID to: ${reviewDetails.product_id}`);
+        
+        setProductStatus(reviewDetails.product_status || 'InReview');
+        setReviewStatus(reviewDetails.review_status || REVIEW_STATUS.DRAFT);
+        
+        // Set read-only mode based on review status
+        const statusLower = reviewDetails.review_status?.toLowerCase() || '';
+        const isEditable = statusLower === 'draft' || statusLower === 'rejected';
+        setIsReadOnly(!isEditable);
+        
+        // Update editor content
+        if (editor && content) {
+          console.log('Setting editor content from API route response');
+          editor.commands.setContent(content);
+          setContentInitialized(true);
+        }
+        
+        // Fetch product details for the name
+        try {
+          const productResponse = await invoke<string | object>('get_product_details', {
+            product_id: reviewDetails.product_id
+          });
+          const productData = typeof productResponse === 'string' 
+            ? JSON.parse(productResponse) 
+            : productResponse;
+            
+          if (productData.success && productData.data) {
+            setProductName(productData.data.product.site_id || `Product #${reviewDetails.product_id}`);
+          }
+        } catch (err) {
+          console.warn('Could not fetch product details:', err);
+          setProductName(`Product #${reviewDetails.product_id}`);
+        }
+      } catch (err) {
+        console.error('Error fetching review:', err);
+        setMessage({
+          text: typeof err === 'string' ? err : 'Failed to load review',
+          severity: 'error'
+        });
+      } finally {
+        setLoading(false);
       }
     };
     
-    if (editor) {
-      initializeEditor();
+    // If review ID is in URL, fetch that review
+    if (reviewId && editor) {
+      fetchReview();
     }
+  }, [reviewId, editor]);
+
+  // Effect to handle initialContent changes
+  useEffect(() => {
+    if (editor && initialContent && !contentInitialized) {
+      console.log('Setting editor content from initialContent prop');
+      editor.commands.setContent(initialContent);
+      setContentInitialized(true);
+    }
+  }, [initialContent, editor, contentInitialized]);
+
+  // Effect to handle initialReview
+  useEffect(() => {
+    if (!initialReview || !editor || contentInitialized) return;
     
-    // Cleanup timer when component unmounts
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
+    console.log('Processing initialReview:', initialReview);
+    const normalizeProductStatus = (status: string): string => {
+      const normalized = status.replace(/\s+/g, '');
+      return PRODUCT_STATUSES.find(ps => ps.value === normalized) ? normalized : 'InReview';
     };
-  }, [productId, initialReview, initialContent, editor]);
+    
+    // Set basic review fields
+    setProductStatus(normalizeProductStatus(initialReview.product_status || ''));
+    setReviewStatus(initialReview.review_status || REVIEW_STATUS.DRAFT);
+    
+    // Check for content in initialReview
+    if (initialReview.content) {
+      console.log('Setting editor content from initialReview.content');
+      editor.commands.setContent(initialReview.content);
+      setContentInitialized(true);
+    } 
+    // If no content but has ID, fetch content
+    else if (initialReview.id) {
+      const fetchReviewContent = async () => {
+        try {
+          console.log(`Fetching content for review ID: ${initialReview.id}`);
+          const response = await invoke<string | object>('get_review', { 
+            review_id: initialReview.id 
+          });
+          
+          const data = typeof response === 'string' 
+            ? JSON.parse(response) 
+            : response;
+          
+          console.log('Review content fetch response:', data);
+          
+          // Check different possible response formats
+          let content = null;
+          if (data.data && data.data.content) {
+            content = data.data.content;
+          } else if (data.content) {
+            content = data.content;
+          } else if (data.review && data.review.content) {
+            content = data.review.content;
+          }
+          
+          if (content) {
+            console.log('Setting editor content from API fetch in initialReview effect');
+            editor.commands.setContent(content);
+            setContentInitialized(true);
+          }
+        } catch (err) {
+          console.error('Error fetching review content:', err);
+        }
+      };
+      
+      fetchReviewContent();
+    } 
+    // This is a new review - check if we should load a browser draft
+    else if (initialReview.product_id && !initialReview.id) {
+      // For a new review, only load a browser draft if explicitly requested
+      // We're NOT automatically loading the browser draft here anymore
+      console.log('This appears to be a new review - not loading browser draft automatically');
+      setContentInitialized(true); // Mark as initialized with empty content
+    }
+  }, [initialReview, editor, contentInitialized]);
+
+
+  // Update editor's editable state when isReadOnly changes
+  useEffect(() => {
+    if (editor) {
+      editor.setEditable(!isReadOnly);
+    }
+  }, [isReadOnly, editor]);
 
   // Function to save draft locally
   const saveDraftLocally = async (content: string) => {
-    if (!editor || !content) return;
+    if (!editor || !content || !productId || isReadOnly) return;
     
     try {
       // Save to localStorage for browser persistence
       const draftKey = `review_draft_${productId}`;
       const draft: LocalDraft = {
-        title: reviewTitle,
         content: content,
         product_status: productStatus,
         last_saved: new Date().toISOString(),
@@ -555,11 +654,29 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
     }
   };
 
+  const checkForBrowserDraft = async (pid: number): Promise<boolean> => {
+    const draftKey = `review_draft_${pid}`;
+    const draftData = localStorage.getItem(draftKey);
+    
+    if (draftData) {
+      try {
+        const parsedDraft = JSON.parse(draftData);
+        // Set up the dialog to ask user if they want to load it
+        setLocalDraft(parsedDraft);
+        setDialogAction('load_draft');
+        setIsConfirmDialogOpen(true);
+        return true;
+      } catch (e) {
+        console.error('Error parsing browser draft:', e);
+        return false;
+      }
+    }
+    return false;
+  };
   // Function to load local draft
   const loadLocalDraft = () => {
     if (!localDraft || !editor) return;
     
-    setReviewTitle(localDraft.title || '');
     setProductStatus(localDraft.product_status || 'InReview');
     editor.commands.setContent(localDraft.content || '');
     
@@ -568,7 +685,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
   
   // Function to sync draft to server
   const syncToServer = async () => {
-    if (!editor) return;
+    if (!editor || !productId) return;
 
     setIsSyncing(true);
 
@@ -576,11 +693,10 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
       const content = editor.getHTML();
 
       // Create/Update review with DRAFT status
-      if (reviewId) {
+      if (currentReviewId) {
         await invoke('update_review', {
-          review_id: reviewId,
+          review_id: currentReviewId,
           review: {
-            title: reviewTitle,
             content,
             product_status: productStatus,
             review_status: 'Draft',
@@ -590,14 +706,14 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
         const result = await invoke('create_review', {
           product_id: productId,
           review: {
-            title: reviewTitle,
             content,
             product_id: productId,
             product_status: productStatus,
             review_status: 'Draft',
           },
         });
-        setReviewId(result.data); // Backend returns the review ID
+        const data = result as any;
+        setCurrentReviewId(data.data); // Backend returns the review ID
       }
 
       setMessage({ text: 'Review synced successfully', severity: 'success' });
@@ -615,18 +731,17 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
 
   // Function to submit review for approval
   const submitForApproval = async () => {
-    if (!editor) return;
+    if (!editor || !productId) return;
 
     setIsSubmitting(true);
 
     try {
       const content = editor.getHTML();
 
-      if (reviewId) {
+      if (currentReviewId) {
         await invoke('update_review', {
-          review_id: reviewId,
+          review_id: currentReviewId,
           review: {
-            title: reviewTitle,
             content,
             product_status: productStatus,
             review_status: 'Pending',
@@ -636,14 +751,14 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
         const result = await invoke('create_review', {
           product_id: productId,
           review: {
-            title: reviewTitle,
             content,
             product_id: productId,
             product_status: productStatus,
             review_status: 'Pending',
           },
         });
-        setReviewId(result.data); // Backend returns the review ID
+        const data = result as any;
+        setCurrentReviewId(data.data); // Backend returns the review ID
       }
 
       setMessage({
@@ -652,11 +767,28 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
       });
 
       // Clear local draft after successful submission
-      const draftKey = `review_draft_${productId}`;
-      localStorage.removeItem(draftKey);
-      setLocalDraft(null);
+      if (productId) {
+        const draftKey = `review_draft_${productId}`;
+        localStorage.removeItem(draftKey);
+        setLocalDraft(null);
+      }
+
+      // Set review to read-only after submission
+      setIsReadOnly(true);
+      if (editor) {
+        editor.setEditable(false);
+      }
 
       onReviewUpdated();
+      
+      // Navigate back to products after a short delay
+      setTimeout(() => {
+        if (productId) {
+          navigate(`/products/${productId}`);
+        } else {
+          navigate('/products');
+        }
+      }, 2000);
     } catch (err) {
       console.error('Error submitting review:', err);
       setMessage({
@@ -678,21 +810,60 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
     setProductStatus(event.target.value);
   };
 
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!productId && !loading) {
+    console.error("Missing product ID for review", { 
+      reviewId, 
+      currentReviewId, 
+      productId
+    });
+    return (
+      <Box p={4}>
+        <Alert severity="error">
+          Missing product ID for review. 
+          <Button 
+            variant="contained" 
+            color="primary" 
+            sx={{ ml: 2 }}
+            onClick={() => navigate('/products')}
+          >
+            Return to Products
+          </Button>
+        </Alert>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ mb: 4 }}>
+      {/* Back Button */}
+      <Button
+        startIcon={<ArrowBackIcon />}
+        onClick={() => navigate(-1)}
+        sx={{ mb: 2 }}
+      >
+        Back
+      </Button>
+      {/* Main Content */}
       <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
         <Typography variant="h5" component="h2" sx={{ mb: 3 }}>
           Review for: {productName || `Product #${productId}`}
+          {isReadOnly && (
+            <Chip 
+              label="Read Only" 
+              color="info" 
+              size="small" 
+              sx={{ ml: 2 }}
+            />
+          )}
         </Typography>
-        
-        <TextField
-          label="Review Title"
-          variant="outlined"
-          fullWidth
-          value={reviewTitle}
-          onChange={(e) => setReviewTitle(e.target.value)}
-          sx={{ mb: 3 }}
-        />
         
         <FormControl fullWidth sx={{ mb: 3 }}>
           <InputLabel>Product Status</InputLabel>
@@ -700,6 +871,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
             value={productStatus}
             label="Product Status"
             onChange={handleStatusChange}
+            disabled={isReadOnly}
           >
             {PRODUCT_STATUSES.map((status) => (
               <MenuItem key={status.value} value={status.value}>
@@ -722,65 +894,99 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
             overflow: 'hidden'
           }}
         >
-          <MenuBar editor={editor} />
+          {!isReadOnly && <MenuBar editor={editor} readOnly={isReadOnly} />}
           <Box sx={{ p: 2, minHeight: 300 }}>
             <EditorContent editor={editor} />
           </Box>
         </Paper>
         
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
-          <Typography variant="caption" color="text.secondary">
-            Tips:
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            • Paste or drag images directly into the editor
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            • Hover over an image to resize or align it
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            • Drag the corner handles to resize images
-          </Typography>
-        </Box>
-        
-        {lastSaved && (
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-            Last auto-saved: {format(lastSaved, 'MMM d, yyyy h:mm a')}
-          </Typography>
+        {!isReadOnly && (
+          <>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
+              <Typography variant="caption" color="text.secondary">
+                Tips:
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                • Paste or drag images directly into the editor
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                • Hover over an image to resize or align it
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                • Drag the corner handles to resize images
+              </Typography>
+            </Box>
+            
+            {lastSaved && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                Last saved: {format(lastSaved, 'MMM d, yyyy h:mm a')}
+              </Typography>
+            )}
+            
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+              <Box>
+                <Button
+                  variant="outlined"
+                  startIcon={<SaveIcon />}
+                  onClick={() => editor && saveDraftLocally(editor.getHTML())}
+                  sx={{ mr: 2 }}
+                  disabled={isReadOnly}
+                >
+                  Save Draft
+                </Button>
+                
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<CloudUploadIcon />}
+                  onClick={syncToServer}
+                  disabled={isSyncing || isReadOnly}
+                >
+                  {isSyncing ? <CircularProgress size={24} /> : 'Sync to Server'}
+                </Button>
+              </Box>
+              
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<CheckCircleIcon />}
+                onClick={confirmSubmit}
+                disabled={isSubmitting || isReadOnly}
+              >
+                {isSubmitting ? <CircularProgress size={24} /> : 'Submit for Approval'}
+              </Button>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            {!isReadOnly && !contentInitialized && productId && (
+              <Button 
+                variant="text" 
+                size="small"
+                onClick={() => productId && checkForBrowserDraft(productId)}
+              >
+                Check for saved draft
+              </Button>
+            )}
+          </Box>
+          </>
         )}
         
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-          <Box>
-            <Button
-              variant="outlined"
-              startIcon={<SaveIcon />}
-              onClick={() => editor && saveDraftLocally(editor.getHTML())}
-              sx={{ mr: 2 }}
-            >
-              Save Draft
-            </Button>
-            
+        {isReadOnly && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
             <Button
               variant="contained"
               color="primary"
-              startIcon={<CloudUploadIcon />}
-              onClick={syncToServer}
-              disabled={isSyncing}
+              onClick={() => {
+                if (productId) {
+                  navigate(`/products/${productId}`);
+                } else {
+                  navigate('/products');
+                }
+              }}
             >
-              {isSyncing ? <CircularProgress size={24} /> : 'Sync to Server'}
+              Back to Product
             </Button>
           </Box>
-          
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={<CheckCircleIcon />}
-            onClick={confirmSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? <CircularProgress size={24} /> : 'Submit for Approval'}
-          </Button>
-        </Box>
+        )}
       </Paper>
       
       {/* Dialog for confirmations */}

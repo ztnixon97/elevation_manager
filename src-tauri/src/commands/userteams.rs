@@ -1,5 +1,5 @@
 use crate::utils::get_auth_header;
-use crate::{auth::login::AuthState, NotificationTarget};
+use crate::auth::login::AuthState;
 use chrono::{Duration, Utc};
 use log::{debug, error, info};
 use reqwest::Client;

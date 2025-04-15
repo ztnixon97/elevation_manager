@@ -1,3 +1,4 @@
+use crate::auth;
 // src-tauri/src/commands/reviews.rs
 use crate::auth::login::AuthState;
 use crate::utils::get_auth_header;
@@ -39,7 +40,6 @@ pub enum ProductStatus {
 /// Represents a new review being created
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NewReview {
-    pub title: String,
     pub content: String,
     pub product_id: i32,
     #[serde(rename = "product_status")]
@@ -52,7 +52,6 @@ pub struct NewReview {
 /// Represents an update to an existing review
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateReview {
-    pub title: Option<String>,
     pub content: Option<String>,
     pub product_status: Option<String>,
     pub review_status: Option<String>,
@@ -119,6 +118,38 @@ pub fn convert_image_to_base64(path: String) -> Result<String, String> {
             error!("Failed to read image file: {}", e);
             Err(format!("Failed to read image file: {}", e))
         }
+    }
+}
+#[tauri::command(rename_all = "snake_case")]
+pub async fn delete_review(state: State<'_, AuthState>, review_id: i32) -> Result<String, String> {
+    let path = get_review_local_path(0, Some(review_id));
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| format!("Failed to delete local review file: {}", e))?;
+    }
+
+    let client = Client::new();
+    let url = format!("http://localhost:3000/reviews/{}", review_id);
+    let auth_header = get_auth_header(&state).await?;
+
+    let response = client
+        .delete(&url)
+        .header("Authorization", auth_header)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send delete request: {}", e))?;
+
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        info!("Review {} deleted successfully", review_id);
+        Ok(format!("Review {} deleted successfully", review_id))
+    } else {
+        error!(
+            "Failed to delete review remotely. Status: {:?}, Response: {}",
+            status, response_text
+        );
+        Err(format!("Failed to delete review remotely: {}", response_text))
     }
 }
 
@@ -233,7 +264,6 @@ pub async fn create_review(
         "review_status": review_status,
         "product_status": product_status,
         "content": review.content,
-        "title": review.title
     });
 
     let response = client
@@ -680,10 +710,9 @@ pub async fn delete_review_image(
 #[tauri::command(rename_all = "snake_case")]
 pub async fn approve_review(state: State<'_, AuthState>, review_id: i32) -> Result<Value, String> {
     let update = UpdateReview {
-        review_status: Some("approved".to_string()),
+        review_status: Some("Approved".to_string()),
         product_status: None,
         content: None,
-        title: None,
     };
 
     update_review(state, review_id, update).await
@@ -692,10 +721,9 @@ pub async fn approve_review(state: State<'_, AuthState>, review_id: i32) -> Resu
 #[tauri::command(rename_all = "snake_case")]
 pub async fn reject_review(state: State<'_, AuthState>, review_id: i32) -> Result<Value, String> {
     let update = UpdateReview {
-        review_status: Some("rejected".to_string()),
+        review_status: Some("Rejected".to_string()),
         product_status: None,
         content: None,
-        title: None,
     };
 
     update_review(state, review_id, update).await
@@ -705,7 +733,6 @@ pub async fn reject_review(state: State<'_, AuthState>, review_id: i32) -> Resul
 pub async fn submit_review_from_file(
     state: tauri::State<'_, AuthState>,
     product_id: i32,
-    title: String,
     product_status: String,
 ) -> Result<i32, String> {
     let content_path = get_review_local_path(product_id, None);
@@ -718,7 +745,6 @@ pub async fn submit_review_from_file(
         .map_err(|e| format!("Failed to read draft file: {}", e))?;
 
     let new_review = NewReview {
-        title,
         content,
         product_id,
         product_status: ProductStatus::InReview,
@@ -738,7 +764,6 @@ pub async fn submit_review_from_file(
 pub async fn update_review_from_file(
     state: tauri::State<'_, AuthState>,
     review_id: i32,
-    title: String,
     product_status: String,
 ) -> Result<(), String> {
     let client = reqwest::Client::new();
@@ -768,9 +793,8 @@ pub async fn update_review_from_file(
 
     // Step 3: Update the review with file content
     let update = UpdateReview {
-        title: Some(title),
         product_status: Some(product_status),
-        review_status: Some("pending".to_string()),
+        review_status: Some("Pending".to_string()),
         content: Some(content),
     };
 
@@ -819,5 +843,53 @@ pub async fn sync_review_from_file(state: State<'_, AuthState>, product_id: i32)
             "Failed to sync review: {}",
             response.text().await.unwrap_or_default()
         ))
+    }
+}
+
+/// Get all pending reviews for a team lead
+#[tauri::command(rename_all = "snake_case")]
+pub async fn get_pending_reviews_for_team_lead(
+    state: State<'_, AuthState>,
+) -> Result<Vec<Review>, String> {
+    let client = Client::new();
+    let url = "http://localhost:3000/reviews/team_lead/pending".to_string();
+    let auth_header = get_auth_header(&state).await?;
+
+    info!("Fetching pending reviews for team lead");
+
+    let response = client
+        .get(&url)
+        .header("Authorization", auth_header)
+        .send()
+        .await
+        .map_err(|e| {
+            error!("Request failed: {}", e);
+            format!("Request failed: {}", e)
+        })?;
+
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+
+    if status.is_success() {
+        info!("Pending reviews fetched successfully");
+
+        let response_value: Value = serde_json::from_str(&response_text)
+            .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+        let reviews = response_value["data"]
+            .as_array()
+            .ok_or_else(|| "Failed to extract reviews from response".to_string())?
+            .iter()
+            .map(|v| serde_json::from_value(v.clone()))
+            .collect::<Result<Vec<Review>, _>>()
+            .map_err(|e| format!("Failed to parse reviews: {}", e))?;
+
+        Ok(reviews)
+    } else {
+        error!(
+            "Failed to fetch pending reviews. Status: {:?}, Response: {}",
+            status, response_text
+        );
+        Err(format!("Failed to fetch pending reviews: {}", response_text))
     }
 }
