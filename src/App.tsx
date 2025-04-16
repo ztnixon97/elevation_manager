@@ -24,7 +24,7 @@ import CreateReviewPage from "./pages/CreraateReviewPage.tsx";
 import ReviewEditor from './components/ReviewEditor';
 import ContractsPage from "./pages/ContractsPage.tsx";
 import ContractDetailsPage from "./pages/ContractDetailsPage.tsx";
-
+import TaskOrderPage from "./pages/TaskOrdersPage.tsx"; 
 const queryClient = new QueryClient();
 
 // Component to handle conditional sidebar rendering
@@ -73,6 +73,7 @@ function AppLayout() {
           <Route path="/reviews/:reviewId" element={<ReviewEditor />} />
           <Route path ="/contracts" element={isAuthenticated ? <ContractsPage /> : <Login />} />
           <Route path = "/contracts/:contractId" element={isAuthenticated ? <ContractDetailsPage /> : <Login />} />
+          <Route path = "/task-orders/:taskOrderId" element={isAuthenticated ? <TaskOrderPage /> : <Login />} />
           {/* Add more routes here */}
           {/* Redirect to login if not authenticated */}
         </Routes>
