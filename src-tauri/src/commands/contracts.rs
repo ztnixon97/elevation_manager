@@ -9,7 +9,7 @@ pub async fn get_contracts(
     state: State<'_, AuthState>,
 ) -> Result<String, String> {
     let client = Client::new();
-    let auth_header = get_auth_header(&state).await.map_err(|e| format!("Failed to get auth header: {}", e))?;
+    let auth_header = get_auth_header(&state).await.map_err(|e| format!("Failed to get auth header: {e}"))?;
     let url = "http://localhost:3000/contracts";
 
     let response = client
@@ -17,17 +17,17 @@ pub async fn get_contracts(
         .header("Authorization", auth_header)
         .send()
         .await
-        .map_err(|e| format!("Failed to send request: {}", e))?;
+        .map_err(|e| format!("Failed to send request: {e}"))?;
 
     let status = response.status();
-    let response_text = response.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+    let response_text = response.text().await.map_err(|e| format!("Failed to read response: {e}"))?;
 
     if status.is_success() {
-        info!("Contracts fetched successfully: {}", response_text);
+        info!("Contracts fetched successfully: {response_text}");
         Ok(response_text)
     } else {
-        error!("Failed to fetch contracts: {}", response_text);
-        Err(format!("Error: {}", response_text))
+        error!("Failed to fetch contracts: {response_text}");
+        Err(format!("Error: {response_text}"))
     }
 }
 

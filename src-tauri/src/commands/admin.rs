@@ -14,7 +14,7 @@ pub async fn get_user_role(
 
     let auth_header = get_auth_header(&state).await?;
     debug!(
-        "🔐 Sending role request with header: {}",
+        "Sending role request with header: {}",
         auth_header.clone()
     );
 
@@ -24,8 +24,8 @@ pub async fn get_user_role(
         .send()
         .await
         .map_err(|e| {
-            error!("Request failed: {}", e);
-            format!("Request failed: {}", e)
+            error!("Request failed: {e}");
+            format!("Request failed: {e}")
         })?;
 
     let status = response.status();
@@ -39,17 +39,15 @@ pub async fn get_user_role(
         };
 
         info!(
-            "Successfully retrieved user role for username: {}",
-            username
+            "Successfully retrieved user role for username: {username}"
         );
-        debug!("Role: {}", role);
+        debug!("Role: {role}");
         Ok(role)
     } else {
         error!(
-            "Failed to retrieve user role. Status: {:?}, Response: {}",
-            status, response_text
+            "Failed to retrieve user role. Status: {status}, Response: {response_text}"
         );
-        Err(format!("Failed to retrieve user role: {:?}", response_text))
+        Err(format!("Failed to retrieve user role: {response_text}"))
     }
 }
 
@@ -60,7 +58,7 @@ pub async fn get_users(state: State<'_, AuthState>) -> Result<String, String> {
         .await
         .map_err(|e| format!("Authentication error: {e}"))?;
 
-    let query_url = format!("http://localhost:3000/users");
+    let query_url = "http://localhost:3000/users".to_string();
     info!("Fetrching users");
 
     let user_response = client
@@ -68,7 +66,7 @@ pub async fn get_users(state: State<'_, AuthState>) -> Result<String, String> {
         .header("Authorization", &auth_header)
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch users"))?;
+        .map_err(|e| format!("Failed to fetch users: Error {e}"))?;
 
     let status = user_response.status();
     let user_json = user_response
@@ -82,9 +80,8 @@ pub async fn get_users(state: State<'_, AuthState>) -> Result<String, String> {
         Ok(user_json)
     } else {
         error!(
-            "Failed to retrieve  users. Status: {:?}, Response: {}",
-            status, user_json
+            "Failed to retrieve  users. Status: {status}, Response: {user_json}"
         );
-        Err(format!("Failed to retrieve  users: {}", user_json))
+        Err(format!("Failed to retrieve  users: {user_json}"))
     }
 }

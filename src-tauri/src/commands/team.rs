@@ -16,7 +16,7 @@ pub async fn create_team(state: State<'_, AuthState>, name: String) -> Result<St
     let url = "http://localhost:3000/teams".to_string();
     let auth_header = get_auth_header(&state).await?;
 
-    info!("Creating a new team: {}", name);
+    info!("Creating a new team: {name}");
 
     let response = client
         .post(&url)
@@ -26,21 +26,21 @@ pub async fn create_team(state: State<'_, AuthState>, name: String) -> Result<St
         .send()
         .await
         .map_err(|e| {
-            error!("Request failed: {}", e);
-            format!("Request failed: {}", e)
+            error!("Request failed: {e}");
+            format!("Request failed: {e}")
         })?;
 
     let status = response.status();
     let response_text = response.text().await.unwrap_or_default();
 
-    info!("Create Team Response: {}", response_text);
+    info!("Create Team Response: {response_text}");
 
     if status.is_success() {
         let parsed_response: serde_json::Value =
             serde_json::from_str(&response_text).map_err(|e| e.to_string())?;
 
         if let Some(team_id) = parsed_response["data"].as_i64() {
-            info!("Successfully created team with ID: {}", team_id);
+            info!("Successfully created team with ID: {team_id}" );
 
             // ✅ Return a proper JSON response with ID and name
             let response_json = serde_json::json!({
@@ -51,17 +51,15 @@ pub async fn create_team(state: State<'_, AuthState>, name: String) -> Result<St
                 }
             });
 
-            return Ok(response_json.to_string());
+            Ok(response_json.to_string());
         } else {
-            error!("Unexpected response format: {}", response_text);
-            return Err("Unexpected response format".to_string());
+            error!("Unexpected response format: {response_text}");
+            Err("Unexpected response format".to_string());
         }
     } else {
         error!(
-            "Failed to create team. Status: {:?}, Response: {}",
-            status, response_text
-        );
-        return Err(format!("Failed to create team: {}", response_text));
+            "Failed to create team. Status: {status}, Response: {response_text}");
+        Err(format!("Failed to create team: {response_text}"));
     }
 }
 
@@ -69,11 +67,11 @@ pub async fn create_team(state: State<'_, AuthState>, name: String) -> Result<St
 #[tauri::command(rename_all = "snake_case")]
 pub async fn get_team(state: State<'_, AuthState>, team_id: i32) -> Result<String, String> {
     let client = Client::new();
-    let url = format!("http://localhost:3000/teams/{}", team_id);
+    let url = format!("http://localhost:3000/teams/{team_id}" );
 
     let auth_header = get_auth_header(&state).await?;
 
-    info!("Fetching team details for ID: {}", team_id);
+    info!("Fetching team details for ID: {team_id}" );
 
     let response = client
         .get(&url)
@@ -81,23 +79,21 @@ pub async fn get_team(state: State<'_, AuthState>, team_id: i32) -> Result<Strin
         .send()
         .await
         .map_err(|e| {
-            error!("Request failed: {}", e);
-            format!("Request failed: {}", e)
+            error!("Request failed: {e}");
+            format!("Request failed: {e}")
         })?;
 
     let status = response.status();
     let response_text = response.text().await.unwrap_or_default();
 
     if status.is_success() {
-        info!("Successfully retrieved team with ID: {}", team_id);
-        debug!("Response: {}", response_text);
+        info!("Successfully retrieved team with ID: {team_id}" );
+        debug!("Response: {response_text}" );
         Ok(response_text)
     } else {
         error!(
-            "Failed to retrieve team. Status: {:?}, Response: {}",
-            status, response_text
-        );
-        Err(format!("Failed to retrieve team: {:?}", response_text))
+            "Failed to retrieve team. Status: {status}, Response: {response_text}");
+        Err(format!("Failed to retrieve team: {response_text}"))
     }
 }
 
