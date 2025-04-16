@@ -51,15 +51,15 @@ pub async fn create_team(state: State<'_, AuthState>, name: String) -> Result<St
                 }
             });
 
-            Ok(response_json.to_string());
+            Ok(response_json.to_string())
         } else {
             error!("Unexpected response format: {response_text}");
-            Err("Unexpected response format".to_string());
+            Err("Unexpected response format".to_string())
         }
     } else {
         error!(
             "Failed to create team. Status: {status}, Response: {response_text}");
-        Err(format!("Failed to create team: {response_text}"));
+        Err(format!("Failed to create team: {response_text}"))
     }
 }
 
