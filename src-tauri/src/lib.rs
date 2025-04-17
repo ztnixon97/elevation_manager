@@ -12,8 +12,8 @@ use commands::team::*;
 use commands::users::*;
 use commands::userteams::*;
 use commands::contracts::*;
+use commands::taskorders::*;
 use std::sync::Arc;
-use tauri_plugin_notification;
 #[tokio::main]
 pub async fn run() {
     tauri::Builder::default()
@@ -94,6 +94,8 @@ pub async fn run() {
             get_contracts,
             get_contract_task_orders,
             get_contract_details,
+            get_task_order,
+            get_taskorder_products,
         ])
         .setup(|_app| {
             log::info!("Tauri app initialized successfully!");

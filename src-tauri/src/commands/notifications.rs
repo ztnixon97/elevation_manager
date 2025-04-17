@@ -318,118 +318,105 @@ pub async fn start_notification_polling(
     let mut handle_guard = polling_state.task_handle.lock().await;
     if handle_guard.is_some() {
         info!("Notification polling already active");
-        return Ok(()); // Already polling
+        return Ok(());
     }
 
     // Clone what we need for the async task.
     let window_clone = window.clone();
-    let state_clone = state.inner().clone(); // your AuthState must be Clone
+    let state_clone = state.inner().clone();
 
     let handle = tokio::spawn(async move {
         let mut last_count: i64 = 0;
         let mut error_count = 0;
-        let mut backoff_seconds = 10; // initial backoff
+        let mut backoff_seconds = 10;
         let mut consecutive_success = 0;
 
         loop {
-            // If no token => skip polling
             let guard = state_clone.token.lock().await;
             let should_poll = guard.is_some();
-            drop(guard); // explicitly drop the guard so we don't hold the lock
+            drop(guard);
 
             if !should_poll {
                 tokio::time::sleep(Duration::from_secs(10)).await;
                 continue;
             }
 
-            // If too many consecutive errors, back off
             if error_count > 5 {
-                info!(
-                    "Multiple errors in notification polling, backing off for {backoff_seconds} seconds"
-                );
+                info!("Too many errors, backing off for {backoff_seconds} seconds");
                 tokio::time::sleep(Duration::from_secs(backoff_seconds)).await;
-                backoff_seconds = (backoff_seconds * 2).min(300); // max 5 min
+                backoff_seconds = (backoff_seconds * 2).min(300);
                 error_count = 0;
                 continue;
             }
 
-            // Fetch the notification count
+            let mut success = false;
+
             match get_notification_count_internal(&state_clone).await {
                 Ok(count_json) => match serde_json::from_str::<CountResponse>(&count_json) {
                     Ok(count_resp) => {
                         let unread_count = count_resp.data.unread;
 
-                        // Emit event so UI can update
-                        if let Err(e) =
-                            window_clone.emit("notification_count_updated", unread_count)
+                        if let Err(e) = window_clone.emit("notification_count_updated", unread_count)
                         {
                             error!("Failed to emit notification count event: {e}");
                             error_count += 1;
-                        }
+                        } else {
+                            success = true;
 
-                        // If we have new notifications, fetch them
-                        if unread_count > last_count && last_count > 0 {
-                            match get_notifications_internal(&state_clone).await {
-                                Ok(notif_json) => {
-                                    match serde_json::from_str::<NotificationResponse>(&notif_json)
-                                    {
-                                        Ok(notif_resp) => {
-                                            // Take as many new notifs as the difference
-                                            let added = (unread_count - last_count) as usize;
-                                            let new_notifs = &notif_resp.data
-                                                [..added.min(notif_resp.data.len())];
+                            if unread_count > last_count && last_count > 0 {
+                                match get_notifications_internal(&state_clone).await {
+                                    Ok(notif_json) => {
+                                        match serde_json::from_str::<NotificationResponse>(
+                                            &notif_json,
+                                        ) {
+                                            Ok(notif_resp) => {
+                                                let added =
+                                                    (unread_count - last_count) as usize;
+                                                let new_notifs = &notif_resp.data
+                                                    [..added.min(notif_resp.data.len())];
 
-                                            for notif in new_notifs {
-                                                let title = &notif.notification.title;
-                                                let body = notif
-                                                    .notification
-                                                    .body
-                                                    .clone()
-                                                    .unwrap_or_default();
+                                                for notif in new_notifs {
+                                                    let title =
+                                                        &notif.notification.title;
+                                                    let body = notif
+                                                        .notification
+                                                        .body
+                                                        .clone()
+                                                        .unwrap_or_default();
 
-                                                // Show system notification
-                                                if let Err(e) = show_system_notification(
-                                                    window_clone.clone(),
-                                                    title.clone(),
-                                                    body,
-                                                )
-                                                .await
-                                                {
-                                                    error!(
-                                                        "Failed to show system notification: {e}"
-                                                    );
-                                                }
+                                                    if let Err(e) = show_system_notification(
+                                                        window_clone.clone(),
+                                                        title.clone(),
+                                                        body,
+                                                    )
+                                                    .await
+                                                    {
+                                                        error!("Failed to show system notification: {e}");
+                                                    }
 
-                                                // Emit event for the app
-                                                if let Err(e) =
-                                                    window_clone.emit("new_notification", notif)
-                                                {
-                                                    error!("Failed to emit new notification event: {e}");
+                                                    if let Err(e) = window_clone
+                                                        .emit("new_notification", notif)
+                                                    {
+                                                        error!("Failed to emit new notification event: {e}");
+                                                    }
                                                 }
                                             }
-                                        }
-                                        Err(e) => {
-                                            error!("Failed to parse notifications: {e}");
-                                            error_count += 1;
+                                            Err(e) => {
+                                                error!("Failed to parse notifications: {e}");
+                                                error_count += 1;
+                                                success = false;
+                                            }
                                         }
                                     }
-                                }
-                                Err(e) => {
-                                    error!("Failed to fetch notifications: {e}");
-                                    error_count += 1;
+                                    Err(e) => {
+                                        error!("Failed to fetch notifications: {e}");
+                                        error_count += 1;
+                                        success = false;
+                                    }
                                 }
                             }
-                        }
 
-                        last_count = unread_count;
-                        // Reset error counters
-                        error_count = 0;
-                        consecutive_success += 1;
-
-                        // After a few successes, reset backoff
-                        if consecutive_success >= 3 {
-                            backoff_seconds = 10;
-                            consecutive_success = 0;
+                            last_count = unread_count;
                         }
                     }
                     Err(e) => {
@@ -438,7 +425,6 @@ pub async fn start_notification_polling(
                     }
                 },
                 Err(e) => {
-                    // If it's not an auth-related error, increment error count
                     if !e.contains("No valid authentication token found") {
                         error!("Error polling notifications: {e}");
                         error_count += 1;
@@ -446,12 +432,21 @@ pub async fn start_notification_polling(
                 }
             }
 
-            // Wait for next poll
+            if success {
+                error_count = 0;
+                consecutive_success += 1;
+                if consecutive_success >= 3 {
+                    backoff_seconds = 10;
+                    consecutive_success = 0;
+                }
+            } else {
+                consecutive_success = 0;
+            }
+
             tokio::time::sleep(Duration::from_secs(30)).await;
         }
     });
 
-    // Store handle to task
     *handle_guard = Some(handle);
 
     Ok(())

@@ -370,10 +370,6 @@ pub async fn update_user_role(
     }
 }
 
-#[derive(Serialize)]
-struct AssignProduct {
-    pub site_id: String,
-}
 
 /// **Get all products assigned to a team**
 #[tauri::command(rename_all = "snake_case")]
@@ -743,10 +739,6 @@ pub async fn get_team_tasks(state: State<'_, AuthState>, team_id: i32) -> Result
     }
 }
 
-#[derive(Serialize)]
-struct AssignTaskOrder {
-    pub task_id: i32,
-}
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn assign_task_order_to_team(

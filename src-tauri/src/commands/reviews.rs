@@ -1,4 +1,3 @@
-use crate::auth;
 // src-tauri/src/commands/reviews.rs
 use crate::auth::login::AuthState;
 use crate::utils::get_auth_header;
@@ -7,8 +6,9 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tauri::State;
+use base64::Engine;
 
 /// Represents the metadata of a review in the system
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -87,6 +87,7 @@ pub fn get_review_local_path(product_id: i32, review_id: Option<i32>) -> PathBuf
     }
 }
 
+#[allow(dead_code)]
 pub fn get_review_image_dir(product_id: i32, review_id: Option<i32>) -> PathBuf {
     let home_dir = dirs::home_dir().expect("Could not find home directory");
     let base_dir = home_dir
@@ -111,7 +112,7 @@ pub fn get_review_image_dir(product_id: i32, review_id: Option<i32>) -> PathBuf 
 pub fn convert_image_to_base64(path: String) -> Result<String, String> {
     match fs::read(path) {
         Ok(bytes) => {
-            let base64 = base64::encode(&bytes);
+            let base64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
             Ok(base64)
         }
         Err(e) => {
@@ -412,7 +413,7 @@ pub async fn update_review(
 
             // Save the content locally
             let local_path = get_review_local_path(product_id as i32, Some(review_id));
-            fs::write(&local_path, &content)
+            fs::write(&local_path, content)
                 .map_err(|e| format!("Failed to save local copy: {}", e))?;
         }
     }
@@ -742,12 +743,23 @@ pub async fn submit_review_from_file(
     }
 
     let content = fs::read_to_string(&content_path)
-        .map_err(|e| format!("Failed to read draft file: {}", e))?;
+        .map_err(|e| format!("Failed to read draft file: {e}"))?;
 
+
+
+    let product_status_enum = match product_status.as_str() {
+        "InReview" | "In Review" => ProductStatus::InReview,
+        "Rejected" => ProductStatus::Rejected,
+        "Accepted" => ProductStatus::Accepted,
+        _ => {
+            log::warn!("Unknown product status: {product_status}");
+            ProductStatus::InReview
+        }
+    };
     let new_review = NewReview {
         content,
         product_id,
-        product_status: ProductStatus::InReview,
+        product_status: product_status_enum,
         review_status: ReviewStatus::Pending,
         reviewer_id: None,
     };

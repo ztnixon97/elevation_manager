@@ -32,6 +32,7 @@ struct AuthResponse {
 
 // 🔹 Login Function
 #[tauri::command]
+#[allow(dead_code)] // The code is being fasly flagged as dead by clippy
 pub async fn login(
     state: State<'_, AuthState>,
     username: String,
@@ -96,6 +97,7 @@ pub async fn login(
 
 // 🔹 Register Function
 #[tauri::command]
+#[allow(dead_code)]
 pub async fn register(
     state: State<'_, AuthState>,
     username: String,
