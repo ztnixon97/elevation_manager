@@ -35,19 +35,38 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/Delete';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import ReceiptIcon from '@mui/icons-material/Receipt';
 
 import { format, parseISO } from 'date-fns';
 
+// Updated interface to match the actual contract data
 interface ContractDetails {
   id: number;
-  contract_number: string;
-  title: string;
-  client: string;
+  number: string;
+  name: string;
+  awarding_agency: string;
+  award_date: string;
   start_date: string;
   end_date: string;
-  value: string;
+  modification_date: string | null;
+  modification_count: number;
+  latest_modification_number: string | null;
+  latest_modification_reason: string | null;
+  current_obligation: number;
+  current_spend: number;
+  spend_ceiling: number;
+  base_value: number;
+  funding_source: string | null;
   status: string;
-  producer: string;
+  pop_start_date: string | null;
+  pop_end_date: string | null;
+  option_years: number | null;
+  reporting_frequency: string | null;
+  last_report_date: string | null;
+  prime_contractor: string;
+  contract_type: string | null;
+  invoice_count: number;
   classification: string;
   created_at: string;
   updated_at: string;
@@ -64,45 +83,41 @@ interface TaskOrderSummary {
   product_count: number;
 }
 
+// Valid status color types for MUI Chip
+type StatusColor = "success" | "error" | "warning" | "info" | "default";
+
 const ContractDetailsPage: React.FC = () => {
   const { contractId } = useParams<{ contractId: string }>();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [contract, setContract] = useState<ContractDetails | null>(null);
   const [taskOrders, setTaskOrders] = useState<TaskOrderSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState<number>(0);
 
+  // Fetch contract details and associated task orders
   useEffect(() => {
     const fetchContractDetails = async () => {
+      if (!contractId) return;
+      
       try {
         setLoading(true);
         
         // Fetch contract details
         const response = await invoke<string | object>('get_contract_details', {
-          contract_id: parseInt(contractId!, 10),
+          contract_id: parseInt(contractId, 10),
         });
         
-        const data = typeof response === 'string' ? JSON.parse(response) : response;
+        const contractData = typeof response === 'string' ? JSON.parse(response) : response;
         
-        if (data.success && data.data) {
-          console.log("Contract Data:", data.data);
-          setContract(data.data);
-        } else {
-          throw new Error(data.message || 'Failed to load contract details');
-        }
-        
-        // Fetch task orders for this contract
-        const taskOrderResponse = await invoke<string | object>('get_contract_task_orders', {
-          contract_id: parseInt(contractId!, 10),
-        });
-        
-        const taskOrderData = typeof taskOrderResponse === 'string' 
-          ? JSON.parse(taskOrderResponse) 
-          : taskOrderResponse;
+        if (contractData.success && contractData.data) {
+          console.log("Contract Data:", contractData.data);
+          setContract(contractData.data);
           
-        if (taskOrderData.success && taskOrderData.data) {
-          setTaskOrders(taskOrderData.data);
+          // After getting contract, fetch its task orders
+          await fetchTaskOrders(parseInt(contractId, 10));
+        } else {
+          throw new Error(contractData.message || 'Failed to load contract details');
         }
       } catch (err) {
         console.error('Error fetching contract details:', err);
@@ -112,36 +127,55 @@ const ContractDetailsPage: React.FC = () => {
       }
     };
     
-    if (contractId) {
-      fetchContractDetails();
-    }
+    fetchContractDetails();
   }, [contractId]);
 
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+  // Separate function to fetch task orders for better organization
+  const fetchTaskOrders = async (contractId: number): Promise<void> => {
+    try {
+      const taskOrderResponse = await invoke<string | object>('get_contract_task_orders', {
+        contract_id: contractId,
+      });
+      
+      const taskOrderData = typeof taskOrderResponse === 'string' 
+        ? JSON.parse(taskOrderResponse) 
+        : taskOrderResponse;
+        
+      if (taskOrderData.success && taskOrderData.data) {
+        setTaskOrders(taskOrderData.data);
+      }
+    } catch (err) {
+      console.error('Error fetching task orders:', err);
+      // Just log error for task orders without breaking the whole page
+    }
+  };
+
+  // Event handlers
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number): void => {
     setActiveTab(newValue);
   };
 
-  const handleEditContract = () => {
+  const handleEditContract = (): void => {
     navigate(`/contracts/edit/${contractId}`);
   };
 
-  const handleCreateTaskOrder = () => {
+  const handleCreateTaskOrder = (): void => {
     navigate(`/task-orders/create?contractId=${contractId}`);
   };
 
-  const handleViewTaskOrder = (taskOrderId: number) => {
+  const handleViewTaskOrder = (taskOrderId: number): void => {
     navigate(`/task-orders/${taskOrderId}`);
   };
 
-  const formatCurrency = (value: string) => {
-    const numValue = parseFloat(value);
-    return numValue.toLocaleString('en-US', {
+  // Utility functions
+  const formatCurrency = (value: number): string => {
+    return value.toLocaleString('en-US', {
       style: 'currency',
       currency: 'USD',
     });
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): StatusColor => {
     switch (status?.toLowerCase()) {
       case 'active':
         return 'success';
@@ -156,7 +190,32 @@ const ContractDetailsPage: React.FC = () => {
         return 'default';
     }
   };
+  
+  // Calculate financial summary data
+  const calculateFinancialSummary = () => {
+    if (!contract) return null;
+    
+    const totalAllocated = taskOrders.reduce(
+      (sum, order) => sum + parseFloat(order.price || '0'), 
+      0
+    );
+    
+    const remaining = contract.base_value - totalAllocated;
+    
+    return {
+      totalAllocated,
+      currentObligation: contract.current_obligation,
+      currentSpend: contract.current_spend,
+      baseCost: contract.base_value,
+      ceiling: contract.spend_ceiling,
+      remaining,
+      isOverBudget: remaining < 0
+    };
+  };
+  
+  const financialSummary = calculateFinancialSummary();
 
+  // Loading state
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
@@ -165,6 +224,7 @@ const ContractDetailsPage: React.FC = () => {
     );
   }
 
+  // Error state
   if (error || !contract) {
     return (
       <Box p={4}>
@@ -176,14 +236,16 @@ const ContractDetailsPage: React.FC = () => {
     );
   }
 
+  // Render main UI
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
+      {/* Header with contract title and edit button */}
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h4" component="h1">
-          Contract: {contract.title}
+          Contract: {contract.name}
           <Chip
             label={contract.status}
-            color={getStatusColor(contract.status) as "success" | "error" | "warning" | "info" | "default"}
+            color={getStatusColor(contract.status)}
             sx={{ ml: 2 }}
           />
         </Typography>
@@ -195,6 +257,7 @@ const ContractDetailsPage: React.FC = () => {
       {/* Contract Info Section */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Grid container spacing={3}>
+          {/* Contract Information */}
           <Grid item xs={12} md={4}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <BusinessIcon sx={{ mr: 1, color: 'primary.main' }} />
@@ -203,17 +266,17 @@ const ContractDetailsPage: React.FC = () => {
             
             <Box sx={{ mb: 2 }}>
               <Typography variant="subtitle2" color="text.secondary">Contract Number</Typography>
-              <Typography variant="body1">{contract.contract_number}</Typography>
+              <Typography variant="body1">{contract.number}</Typography>
             </Box>
             
             <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary">Client</Typography>
-              <Typography variant="body1">{contract.client}</Typography>
+              <Typography variant="subtitle2" color="text.secondary">Awarding Agency</Typography>
+              <Typography variant="body1">{contract.awarding_agency}</Typography>
             </Box>
             
             <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary">Producer</Typography>
-              <Typography variant="body1">{contract.producer || 'Not specified'}</Typography>
+              <Typography variant="subtitle2" color="text.secondary">Prime Contractor</Typography>
+              <Typography variant="body1">{contract.prime_contractor || 'Not specified'}</Typography>
             </Box>
             
             <Box sx={{ mb: 2 }}>
@@ -222,10 +285,18 @@ const ContractDetailsPage: React.FC = () => {
             </Box>
           </Grid>
           
+          {/* Timeline Information */}
           <Grid item xs={12} md={4}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <CalendarTodayIcon sx={{ mr: 1, color: 'primary.main' }} />
               <Typography variant="h6">Timeline</Typography>
+            </Box>
+            
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" color="text.secondary">Award Date</Typography>
+              <Typography variant="body1">
+                {contract.award_date ? format(parseISO(contract.award_date), 'MMMM d, yyyy') : 'Not specified'}
+              </Typography>
             </Box>
             
             <Box sx={{ mb: 2 }}>
@@ -253,67 +324,93 @@ const ContractDetailsPage: React.FC = () => {
             </Box>
             
             <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary">Created</Typography>
+              <Typography variant="subtitle2" color="text.secondary">Last Modified</Typography>
               <Typography variant="body1">
-                {format(parseISO(contract.created_at), 'MMMM d, yyyy')}
+                {contract.modification_date 
+                  ? format(parseISO(contract.modification_date), 'MMMM d, yyyy') 
+                  : 'Never modified'}
+                {contract.modification_count > 0 && ` (${contract.modification_count} modifications)`}
               </Typography>
             </Box>
           </Grid>
           
+          {/* Financial Information */}
           <Grid item xs={12} md={4}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <MoneyIcon sx={{ mr: 1, color: 'primary.main' }} />
               <Typography variant="h6">Financial</Typography>
             </Box>
             
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary">Contract Value</Typography>
-              <Typography variant="body1" fontWeight="bold" color="primary.main">
-                {formatCurrency(contract.value)}
-              </Typography>
-            </Box>
-            
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary">Task Orders</Typography>
-              <Typography variant="body1">{taskOrders.length}</Typography>
-            </Box>
-            
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary">Allocated in Task Orders</Typography>
-              <Typography variant="body1">
-                {formatCurrency(
-                  taskOrders.reduce((sum, order) => sum + parseFloat(order.price || '0'), 0).toString()
-                )}
-              </Typography>
-            </Box>
-            
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary">Remaining Budget</Typography>
-              <Typography variant="body1" color={
-                parseFloat(contract.value) - taskOrders.reduce((sum, order) => sum + parseFloat(order.price || '0'), 0) >= 0
-                  ? 'success.main'
-                  : 'error.main'
-              }>
-                {formatCurrency(
-                  (parseFloat(contract.value) - taskOrders.reduce((sum, order) => sum + parseFloat(order.price || '0'), 0)).toString()
-                )}
-              </Typography>
-            </Box>
+            {financialSummary && (
+              <>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary">Base Value</Typography>
+                  <Typography variant="body1" fontWeight="bold" color="primary.main">
+                    {formatCurrency(financialSummary.baseCost)}
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary">Ceiling</Typography>
+                  <Typography variant="body1">
+                    {formatCurrency(financialSummary.ceiling)}
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary">Current Obligation</Typography>
+                  <Typography variant="body1">
+                    {formatCurrency(financialSummary.currentObligation)}
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary">Current Spend</Typography>
+                  <Typography variant="body1">
+                    {formatCurrency(financialSummary.currentSpend)}
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary">Task Orders</Typography>
+                  <Typography variant="body1">{taskOrders.length}</Typography>
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary">Allocated in Task Orders</Typography>
+                  <Typography variant="body1">
+                    {formatCurrency(financialSummary.totalAllocated)}
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" color="text.secondary">Remaining Budget</Typography>
+                  <Typography variant="body1" color={
+                    financialSummary.isOverBudget ? 'error.main' : 'success.main'
+                  }>
+                    {formatCurrency(financialSummary.remaining)}
+                  </Typography>
+                </Box>
+              </>
+            )}
           </Grid>
         </Grid>
       </Paper>
 
-      {/* Task Orders & Documents Tabs */}
+      {/* Tabs Section */}
       <Paper sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={activeTab} onChange={handleTabChange}>
             <Tab label="Task Orders" icon={<AssignmentIcon />} iconPosition="start" />
             <Tab label="Documents" icon={<DescriptionIcon />} iconPosition="start" />
+            <Tab label="Invoces" icon={<AccountBalanceIcon />} iconPosition='start' />
             <Tab label="Details" />
           </Tabs>
         </Box>
 
+        {/* Tab Content */}
         <Box sx={{ p: 3, flexGrow: 1, overflow: 'auto' }}>
+          {/* Task Orders Tab */}
           {activeTab === 0 && (
             <Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -342,7 +439,7 @@ const ContractDetailsPage: React.FC = () => {
                             <Chip 
                               size="small" 
                               label={taskOrder.status}
-                              color={getStatusColor(taskOrder.status) as "success" | "error" | "warning" | "info" | "default"}
+                              color={getStatusColor(taskOrder.status)}
                             />
                           </Box>
                           
@@ -351,7 +448,7 @@ const ContractDetailsPage: React.FC = () => {
                           <Box sx={{ display: 'flex', mb: 1 }}>
                             <MoneyIcon sx={{ mr: 1, color: 'text.secondary', fontSize: 20 }} />
                             <Typography variant="body2">
-                              {formatCurrency(taskOrder.price || '0')}
+                              {formatCurrency(parseFloat(taskOrder.price || '0'))}
                             </Typography>
                           </Box>
                           
@@ -393,6 +490,7 @@ const ContractDetailsPage: React.FC = () => {
             </Box>
           )}
 
+          {/* Documents Tab */}
           {activeTab === 1 && (
             <Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -431,8 +529,17 @@ const ContractDetailsPage: React.FC = () => {
               </List>
             </Box>
           )}
-
+          {/* Inoivce Tab */}
           {activeTab === 2 && (
+            <Box>
+              <Typography varient= "h6" gutterBottom>
+                Placeholder
+                </Typography>
+            </Box>
+          )}
+
+          {/* Details Tab */}
+          {activeTab === 3  && (
             <Box>
               <Typography variant="h6" gutterBottom>
                 Raw Contract Data
