@@ -41,7 +41,7 @@ const TeamDashboard: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
   const parsedTeamId = teamId ? parseInt(teamId, 10) : null;
   const navigate = useNavigate();
-  const { userRole } = useContext(AuthContext);
+  const { userRole, userId, username } = useContext(AuthContext);
   const theme = useTheme();
 
   const [team, setTeam] = useState<Team | null>(null);

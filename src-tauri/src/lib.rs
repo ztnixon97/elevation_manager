@@ -1,7 +1,9 @@
+// src-tauri/src/lib.rs
 mod auth;
 mod commands;
 mod state;
 mod utils;
+mod services;  // Add this line
 
 use auth::login::{login, register, AuthState};
 use commands::admin::*;
@@ -13,18 +15,37 @@ use commands::users::*;
 use commands::userteams::*;
 use commands::contracts::*;
 use commands::taskorders::*;
+
+// Add these imports for the new ApiClient
+use services::{api_client::ApiClient, config::AppConfig};
 use std::sync::Arc;
+use tokio::sync::Mutex;
+
 #[tokio::main]
 pub async fn run() {
+    // Create configuration
+    let config = AppConfig::new();
+    
+    // Create shared auth state
+    let auth_state = Arc::new(Mutex::new(AuthState::default()));
+    
+    // Create shared API client
+    let api_client = ApiClient::new(config, auth_state.clone());
+    
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
-        .manage(AuthState::default())
+        .manage(AuthState::default())  // Keep old AuthState for backward compatibility
+        .manage(auth_state)            // Add new shared AuthState
+        .manage(api_client)            // Add new shared ApiClient
         .manage(Arc::new(commands::notifications::PollingState::default()))
         .invoke_handler(tauri::generate_handler![
+            // Auth commands (keep as-is)
             login,
             register,
+            
+            // Team commands (keep existing until migrated)
             create_team,
             get_all_teams,
             get_team,
@@ -36,10 +57,7 @@ pub async fn run() {
             update_user_role,
             remove_user_from_team,
             get_user_role,
-            get_all_users,
             add_user_to_team,
-            get_all_products,
-            get_all_product_types,
             assign_product_to_team,
             remove_product_from_team,
             assign_product_type_to_team,
@@ -47,30 +65,34 @@ pub async fn run() {
             get_team_tasks,
             remove_task_order_from_team,
             remove_product_type_from_team,
+            get_team_notifications,
+            get_pending_team_requests,
+            approve_team_request,
+            reject_team_request,
+            send_team_notification,
+            
+            // User commands (keep existing until migrated)
+            get_all_users,
             get_users,
             update_user,
             delete_user,
             lock_user,
             get_user_teams,
             request_team_join,
-            get_notification_count,
-            get_notifications,
-            dismiss_notification,
-            dismiss_all_notifications,
-            show_system_notification,
-            start_notification_polling,
-            stop_notification_polling,
-            manual_refresh_notifications,
+            get_me,
+            
+            // Product commands (keep existing until migrated)
+            get_all_products,
+            get_all_product_types,
             get_user_products,
             checkout_product,
             assign_product_to_user,
             get_product_details,
             get_product_reviews,
-            get_team_notifications,
-            get_pending_team_requests,
-            approve_team_request,
-            reject_team_request,
-            send_team_notification,
+            delete_product_assignment,
+            get_product_assignments,
+            
+            // Review commands (keep existing until migrated)
             save_review_draft,
             load_review_draft,
             convert_image_to_base64,
@@ -89,13 +111,28 @@ pub async fn run() {
             sync_review_from_file,
             get_pending_reviews_for_team_lead,
             delete_review,
-            delete_product_assignment,
-            get_product_assignments,
+            
+            // Contract commands (keep existing until migrated)
             get_contracts,
             get_contract_task_orders,
             get_contract_details,
+            
+            // Task order commands (keep existing until migrated)
             get_task_order,
             get_taskorder_products,
+            
+            // Notification commands (keep existing until migrated)
+            get_notification_count,
+            get_notifications,
+            dismiss_notification,
+            dismiss_all_notifications,
+            show_system_notification,
+            start_notification_polling,
+            stop_notification_polling,
+            manual_refresh_notifications,
+            
+            // Add new commands here as you migrate them
+            // Example: get_contracts_v2,  // New version using ApiClient
         ])
         .setup(|_app| {
             log::info!("Tauri app initialized successfully!");

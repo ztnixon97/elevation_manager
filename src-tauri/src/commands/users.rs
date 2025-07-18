@@ -1,4 +1,5 @@
-use crate::auth::login::AuthState;
+use crate::services::api_client;
+use crate::{auth::login::AuthState, services::api_client::ApiClient};
 use crate::utils::get_auth_header;
 use log::{debug, error, info};
 use reqwest::Client;
@@ -135,4 +136,18 @@ pub async fn get_user_teams(state: State<'_, AuthState>) -> Result<String, Strin
         );
         Err(format!("Failed to fetch user teams: {}", body))
     }
+}
+
+ #[tauri::command(rename_all = "snake_case")]
+pub async fn get_me(
+    api_client: State<'_, ApiClient>,
+) -> Result<String, String> {
+    info!("Fetching current user information");
+    api_client
+        .get("/users/me")
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch current user: {}", e);
+            e
+        })
 }

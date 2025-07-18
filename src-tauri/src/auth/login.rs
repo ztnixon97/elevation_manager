@@ -35,64 +35,34 @@ struct AuthResponse {
 #[allow(dead_code)] // The code is being fasly flagged as dead by clippy
 pub async fn login(
     state: State<'_, AuthState>,
+    api_client: State<'_, crate::services::api_client::ApiClient>,
     username: String,
     password: String,
 ) -> Result<(String, String), String> {
-    let client = Client::new();
-    let login_url = "http://localhost:3000/auth/login";
+    // Prepare the request body
+    let request_body = serde_json::json!({
+        "username": username,
+        "password": password,
+    });
 
-    let username_clone = username.clone();
-    info!("🔄 Attempting login for user: {}", username_clone);
+    // Use the ApiClient for the login request
+    let response = api_client
+        .post_no_auth("/auth/login", &request_body)
+        .await?;
 
-    let request_body = AuthRequest { username, password };
-    info!(
-        "📩 Request JSON: {}",
-        serde_json::to_string(&request_body).unwrap()
-    );
+    // Parse the response
+    let body: AuthResponse = serde_json::from_str(&response)
+        .map_err(|e| format!("❌ JSON parsing error: {e}"))?;
 
-    let response = client
-        .post(login_url)
-        .header("Content-Type", "application/json")
-        .header("Accept", "application/json")
-        .json(&request_body)
-        .send()
-        .await
-        .map_err(|e| format!("❌ Network error: {e}"))?;
+    // Update legacy AuthState
+    let mut token_guard = state.token.lock().await;
+    *token_guard = Some(body.token.clone());
 
-    let status = response.status();
-    let response_text = response
-        .text()
-        .await
-        .unwrap_or_else(|_| "No response body".to_string());
+    // Also update ApiClient's auth_state
+    api_client.set_token(body.token.clone()).await;
 
-    info!("📡 Response Status: {:?}", status);
-    info!("📜 Response Body: {}", response_text);
-
-    if status.is_success() {
-        let body: AuthResponse = serde_json::from_str(&response_text)
-            .map_err(|e| format!("❌ JSON parsing error: {e}"))?;
-
-        // Lock the token and update it
-        let mut token_guard = state.token.lock().await;
-        *token_guard = Some(body.token.clone());
-
-        info!("✅ Login successful! Token and role stored.");
-        Ok((body.token, body.role))
-    } else {
-        let error_message = serde_json::from_str::<serde_json::Value>(&response_text)
-            .ok()
-            .and_then(|json| {
-                json.get("message")
-                    .and_then(|m| m.as_str().map(|s| s.to_string()))
-            })
-            .unwrap_or_else(|| "Unknown error".to_string());
-
-        error!(
-            "🚫 Login failed for user {}: {}",
-            username_clone, error_message
-        );
-        Err(error_message)
-    }
+    info!("✅ Login successful! Token and role stored.");
+    Ok((body.token, body.role))
 }
 
 // 🔹 Register Function
@@ -100,60 +70,37 @@ pub async fn login(
 #[allow(dead_code)]
 pub async fn register(
     state: State<'_, AuthState>,
+    api_client: State<'_, crate::services::api_client::ApiClient>,
     username: String,
     password: String,
 ) -> Result<String, String> {
-    let client = Client::new();
-    let register_url = "http://localhost:3000/auth/register";
+    // Prepare the request body
+    let request_body = serde_json::json!({
+        "username": username,
+        "password": password,
+        "role": "user",
+    });
 
-    info!("🔐 Registering new user: {}", username);
+    // Use the ApiClient for the registration request
+    let response = api_client
+        .post_no_auth("/auth/register", &request_body)
+        .await?;
 
-    let request_body = RegisterRequest {
-        username: username.clone(),
-        password: password.clone(),
-        role: "user".to_string(),
-    };
+    // Parse the response to check for success
+    let response_json: serde_json::Value = serde_json::from_str(&response)
+        .map_err(|e| format!("❌ JSON parsing error: {e}"))?;
 
-    info!(
-        "📤 Request JSON: {}",
-        serde_json::to_string(&request_body).unwrap()
-    );
-
-    let response = client
-        .post(register_url)
-        .header("Content-Type", "application/json")
-        .header("Accept", "application/json")
-        .json(&request_body)
-        .send()
-        .await
-        .map_err(|e| format!("❌ Network error: {e}"))?;
-
-    let status = response.status();
-    let response_text = response
-        .text()
-        .await
-        .unwrap_or_else(|_| "No response body".to_string());
-
-    info!("📡 Response Status: {:?}", status);
-    info!("📜 Response Body: {}", response_text);
-
-    if status.is_success() {
+    if response_json.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
         info!("✅ Registration succeeded. Proceeding to login.");
-
         // Automatically login after registration
-        login(state, username, password)
+        login(state, api_client, username, password)
             .await
             .map(|_| "Registration and login successful!".to_string())
     } else {
-        let maybe_msg = serde_json::from_str::<serde_json::Value>(&response_text)
-            .ok()
-            .and_then(|v| {
-                v.get("message")
-                    .and_then(|m| m.as_str().map(|s| s.to_string()))
-            })
-            .unwrap_or_else(|| "Registration failed. Try again.".to_string());
-
+        let maybe_msg = response_json.get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Registration failed. Try again.");
         error!("🚫 Registration failed: {}", maybe_msg);
-        Err(maybe_msg)
+        Err(maybe_msg.to_string())
     }
 }
