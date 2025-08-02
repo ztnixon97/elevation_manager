@@ -15,6 +15,7 @@ use commands::users::*;
 use commands::userteams::*;
 use commands::contracts::*;
 use commands::taskorders::*;
+use commands::settings::*;
 
 // Add these imports for the new ApiClient
 use services::{api_client::ApiClient, config::AppConfig};
@@ -24,26 +25,28 @@ use tokio::sync::Mutex;
 #[tokio::main]
 pub async fn run() {
     // Create configuration
-    let config = AppConfig::new();
+    let config = Arc::new(AppConfig::new());
     
     // Create shared auth state
     let auth_state = Arc::new(Mutex::new(AuthState::default()));
     
     // Create shared API client
-    let api_client = ApiClient::new(config, auth_state.clone());
+    let api_client = ApiClient::new((*config).clone(), auth_state.clone());
     
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .manage(AuthState::default())  // Keep old AuthState for backward compatibility
-        .manage(auth_state)            // Add new shared AuthState
+        .manage(auth_state.clone())    // Add new shared AuthState
+        .manage(config.clone())        // Add shared config for polling
         .manage(api_client)            // Add new shared ApiClient
         .manage(Arc::new(commands::notifications::PollingState::default()))
         .invoke_handler(tauri::generate_handler![
             // Auth commands (keep as-is)
             login,
             register,
+            get_me,
             
             // Team commands (keep existing until migrated)
             create_team,
@@ -79,7 +82,8 @@ pub async fn run() {
             lock_user,
             get_user_teams,
             request_team_join,
-            get_me,
+            change_password,
+            get_me_profile,
             
             // Product commands (keep existing until migrated)
             get_all_products,
@@ -114,12 +118,17 @@ pub async fn run() {
             
             // Contract commands (keep existing until migrated)
             get_contracts,
-            get_contract_task_orders,
             get_contract_details,
+            get_contract_task_orders,
+            create_contract,
             
-            // Task order commands (keep existing until migrated)
+            // Task order commands (now unified)
             get_task_order,
             get_taskorder_products,
+            create_task_order,
+            get_all_taskorders,
+            update_task_order,
+            check_task_order_edit_permission,
             
             // Notification commands (keep existing until migrated)
             get_notification_count,
@@ -130,6 +139,18 @@ pub async fn run() {
             start_notification_polling,
             stop_notification_polling,
             manual_refresh_notifications,
+            
+            // Settings commands
+            get_settings,
+            save_settings,
+            reset_settings,
+            get_app_info,
+            export_settings,
+            import_settings,
+            apply_font_size,
+            apply_display_density,
+            update_notification_polling,
+            clear_application_cache,
             
             // Add new commands here as you migrate them
             // Example: get_contracts_v2,  // New version using ApiClient

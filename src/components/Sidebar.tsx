@@ -33,7 +33,9 @@ import {
   LightMode,
   TextSnippet,
   Gavel,
+  Assignment,
   Notifications as NotificationsIcon,
+  AccountCircle,
 } from "@mui/icons-material";
 import NotificationDrawer from "./NotificationDrawer";
 import { useNotifications } from "../context/NotificationContext";
@@ -92,6 +94,7 @@ const Sidebar: React.FC = () => {
     { name: "Products", url: "/products", icon: <Inventory /> },
     { name: "Reviews", url: "/reviews", icon: <VerifiedUser /> },
     { name: "Contracts", url: "/contracts", icon: <Gavel /> },
+    { name: "Task Orders", url: "/task-orders", icon: <Assignment /> },
     { name: "GraphQL", url: "/dev/graphql", icon: <TextSnippet /> },
     { 
       name: "Notifications", 
@@ -106,6 +109,7 @@ const Sidebar: React.FC = () => {
         </Badge>
       ) 
     },
+    { name: "Profile", url: "/profile", icon: <AccountCircle /> },
     { name: "Settings", url: "/settings", icon: <Settings /> },
   ];
 

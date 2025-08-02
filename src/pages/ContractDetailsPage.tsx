@@ -98,14 +98,26 @@ const ContractDetailsPage: React.FC = () => {
   // Fetch contract details and associated task orders
   useEffect(() => {
     const fetchContractDetails = async () => {
-      if (!contractId) return;
+      if (!contractId) {
+        setError('Contract ID is required');
+        setLoading(false);
+        return;
+      }
+      
+      // Validate that contractId is a valid number
+      const contractIdNum = parseInt(contractId, 10);
+      if (isNaN(contractIdNum)) {
+        setError('Invalid contract ID format');
+        setLoading(false);
+        return;
+      }
       
       try {
         setLoading(true);
         
         // Fetch contract details
         const response = await invoke<string | object>('get_contract_details', {
-          contract_id: parseInt(contractId, 10),
+          contract_id: contractIdNum,
         });
         
         const contractData = typeof response === 'string' ? JSON.parse(response) : response;
@@ -115,7 +127,7 @@ const ContractDetailsPage: React.FC = () => {
           setContract(contractData.data);
           
           // After getting contract, fetch its task orders
-          await fetchTaskOrders(parseInt(contractId, 10));
+          await fetchTaskOrders(contractIdNum);
         } else {
           throw new Error(contractData.message || 'Failed to load contract details');
         }
@@ -258,7 +270,7 @@ const ContractDetailsPage: React.FC = () => {
       <Paper sx={{ p: 3, mb: 3 }}>
         <Grid container spacing={3}>
           {/* Contract Information */}
-          <Grid item xs={12} md={4}>
+          <Grid xs={12} md={4}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <BusinessIcon sx={{ mr: 1, color: 'primary.main' }} />
               <Typography variant="h6">Contract Information</Typography>
@@ -286,7 +298,7 @@ const ContractDetailsPage: React.FC = () => {
           </Grid>
           
           {/* Timeline Information */}
-          <Grid item xs={12} md={4}>
+          <Grid xs={12} md={4}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <CalendarTodayIcon sx={{ mr: 1, color: 'primary.main' }} />
               <Typography variant="h6">Timeline</Typography>
@@ -335,7 +347,7 @@ const ContractDetailsPage: React.FC = () => {
           </Grid>
           
           {/* Financial Information */}
-          <Grid item xs={12} md={4}>
+          <Grid xs={12} md={4}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <MoneyIcon sx={{ mr: 1, color: 'primary.main' }} />
               <Typography variant="h6">Financial</Typography>
@@ -431,7 +443,7 @@ const ContractDetailsPage: React.FC = () => {
               ) : (
                 <Grid container spacing={2}>
                   {taskOrders.map((taskOrder) => (
-                    <Grid item xs={12} md={6} lg={4} key={taskOrder.id}>
+                    <Grid xs={12} md={6} lg={4} key={taskOrder.id}>
                       <Card>
                         <CardContent>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
@@ -529,12 +541,12 @@ const ContractDetailsPage: React.FC = () => {
               </List>
             </Box>
           )}
-          {/* Inoivce Tab */}
+          {/* Invoice Tab */}
           {activeTab === 2 && (
             <Box>
-              <Typography varient= "h6" gutterBottom>
+              <Typography variant="h6" gutterBottom>
                 Placeholder
-                </Typography>
+              </Typography>
             </Box>
           )}
 

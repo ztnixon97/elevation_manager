@@ -18,7 +18,13 @@ import { DataGrid, GridColDef, GridToolbarQuickFilter, GridToolbarContainer } fr
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 
-type Team = {
+type UserTeam = {
+  team_id: number;
+  team_name: string;
+  role: string;
+};
+
+type AllTeam = {
   id: number;
   name: string;
 };
@@ -40,7 +46,7 @@ const UserTeamPage = () => {
   // 🔹 User teams
   const { data: userTeams = [], isLoading: loadingUserTeams } = useQuery({
     queryKey: ["user_teams"],
-    queryFn: async (): Promise<Team[]> => {
+    queryFn: async (): Promise<UserTeam[]> => {
       const res = await invoke<string>("get_user_teams");
       const parsed = JSON.parse(res);
       return parsed.data || [];
@@ -55,7 +61,7 @@ const UserTeamPage = () => {
     refetch: refetchAllTeams,
   } = useQuery({
     queryKey: ["all_teams"],
-    queryFn: async (): Promise<Team[]> => {
+    queryFn: async (): Promise<AllTeam[]> => {
       const res = await invoke<string>("get_all_teams");
       const parsed = JSON.parse(res);
       return parsed.data?.teams || [];
@@ -64,7 +70,7 @@ const UserTeamPage = () => {
   });
 
   const availableTeams = useMemo(() => {
-    const userTeamIds = new Set(userTeams.map((t) => t.id));
+    const userTeamIds = new Set(userTeams.map((t) => t.team_id));
     return allTeams.filter((t) => !userTeamIds.has(t.id));
   }, [userTeams, allTeams]);
 
@@ -83,7 +89,7 @@ const UserTeamPage = () => {
       setSelectedTeam("");
       setSelectedRole("member");
       setJustification("");
-      queryClient.invalidateQueries(["user_teams"]);
+      queryClient.invalidateQueries({ queryKey: ["user_teams"] });
     },
     onError: (err) => {
       console.error(err);
@@ -102,9 +108,9 @@ const UserTeamPage = () => {
   };
 
   const columns: GridColDef[] = [
-    { field: "id", headerName: "ID", width: 80 },
+    { field: "team_id", headerName: "ID", width: 80 },
     { 
-      field: "name", 
+      field: "team_name", 
       headerName: "Team Name", 
       flex: 1,
       renderCell: (params) => (
@@ -118,12 +124,13 @@ const UserTeamPage = () => {
               textDecoration: 'underline' 
             }
           }}
-          onClick={() => handleTeamClick(params.row.id)}
+          onClick={() => handleTeamClick(params.row.team_id)}
         >
           {params.value}
         </Box>
       ) 
     },
+    { field: "role", headerName: "Role", width: 120 },
   ];
 
   const CustomToolbar = () => (
@@ -156,7 +163,7 @@ const UserTeamPage = () => {
           <DataGrid
             rows={userTeams}
             columns={columns}
-            getRowId={(row) => row.id}
+            getRowId={(row) => row.team_id}
             pageSizeOptions={[5, 10]}
             paginationModel={paginationModel}
             onPaginationModelChange={setPaginationModel}

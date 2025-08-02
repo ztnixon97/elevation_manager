@@ -1,12 +1,8 @@
 // src-tauri/src/commands/notifications.rs
 
+use crate::services::{api_client::ApiClient, config::AppConfig};
 use crate::auth::login::AuthState;
-use crate::utils::{
-    get_auth_header,          // for Tauri commands
-    get_auth_header_internal, // for internal/polling
-};
 use log::{debug, error, info};
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -81,12 +77,12 @@ pub struct CountResponse {
 // from the polling loop, where you only have `AuthState` without `State`.
 
 /// Internal helper to fetch the current notification count.
-async fn get_notification_count_internal(auth_state: &AuthState) -> Result<String, String> {
-    let client = Client::new();
+async fn get_notification_count_internal(auth_state: &crate::auth::login::AuthState) -> Result<String, String> {
+    let client = reqwest::Client::new();
     let url = "http://localhost:3000/notifications/count".to_string();
 
     // NEW: call get_auth_header_internal(...) instead of get_auth_header(...)
-    let auth_header = get_auth_header_internal(auth_state).await?;
+    let auth_header = crate::utils::get_auth_header_internal(auth_state).await?;
 
     info!("Fetching notification count...");
 
@@ -120,12 +116,12 @@ async fn get_notification_count_internal(auth_state: &AuthState) -> Result<Strin
 }
 
 /// Internal helper to fetch all notifications for the current user.
-async fn get_notifications_internal(auth_state: &AuthState) -> Result<String, String> {
-    let client = Client::new();
+async fn get_notifications_internal(auth_state: &crate::auth::login::AuthState) -> Result<String, String> {
+    let client = reqwest::Client::new();
     let url = "http://localhost:3000/notifications?include_dismissed=false".to_string();
 
     // NEW: call get_auth_header_internal(...) instead of get_auth_header(...)
-    let auth_header = get_auth_header_internal(auth_state).await?;
+    let auth_header = crate::utils::get_auth_header_internal(auth_state).await?;
 
     info!("Fetching notifications...");
 
@@ -164,95 +160,34 @@ async fn get_notifications_internal(auth_state: &AuthState) -> Result<String, St
 
 /// Tauri command that fetches the current notification count.
 #[tauri::command]
-pub async fn get_notification_count(state: State<'_, AuthState>) -> Result<String, String> {
-    // Tauri command → we can still use get_notification_header(...) with `State<'_, AuthState>`
-    // (But here we’re just reusing get_notification_count_internal for simplicity.)
-    get_notification_count_internal(&state).await
+pub async fn get_notification_count(api_client: State<'_, ApiClient>) -> Result<String, String> {
+    info!("Fetching notification count...");
+    api_client.get("/notifications/count").await
 }
 
 /// Tauri command that fetches notifications for the current user.
 #[tauri::command]
-pub async fn get_notifications(state: State<'_, AuthState>) -> Result<String, String> {
-    // Tauri command → we can still use get_notification_header(...) with `State<'_, AuthState>`
-    // (But here we’re just reusing get_notifications_internal for simplicity.)
-    get_notifications_internal(&state).await
+pub async fn get_notifications(api_client: State<'_, ApiClient>) -> Result<String, String> {
+    info!("Fetching notifications...");
+    api_client.get("/notifications?include_dismissed=false").await
 }
 
 /// Tauri command that dismisses a specific notification.
 #[tauri::command]
 pub async fn dismiss_notification(
-    state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
     notification_id: i32,
 ) -> Result<(), String> {
-    let client = Client::new();
-    let url = format!(
-        "http://localhost:3000/notifications/{}/dismiss",
-        notification_id
-    );
-
-    // Tauri command → can use the original get_auth_header(...) function
-    let auth_header = get_auth_header(&state).await?;
-
     info!("Dismissing notification {notification_id}...");
-
-    let response = client
-        .post(&url)
-        .header("Authorization", auth_header)
-        .send()
-        .await
-        .map_err(|e| {
-            error!("Request failed: {e}");
-            format!("Request failed: {e}")
-        })?;
-
-    let status = response.status();
-
-    if status.is_success() {
-        info!("Successfully dismissed notification {notification_id}");
-        Ok(())
-    } else {
-        let response_text = response.text().await.unwrap_or_default();
-        error!("Failed to dismiss notification. Status: {status:?}, Response: {response_text}");
-        Err(format!("Failed to dismiss notification: {response_text:?}"))
-    }
+    api_client.post(&format!("/notifications/{}/dismiss", notification_id), &()).await?;
+    Ok(())
 }
 
 /// Tauri command that dismisses all notifications.
 #[tauri::command]
-pub async fn dismiss_all_notifications(state: State<'_, AuthState>) -> Result<String, String> {
-    let client = Client::new();
-    let url = "http://localhost:3000/notifications/dismiss-all".to_string();
-
-    // Tauri command → can use the original get_auth_header(...) function
-    let auth_header = get_auth_header(&state).await?;
-
+pub async fn dismiss_all_notifications(api_client: State<'_, ApiClient>) -> Result<String, String> {
     info!("Dismissing all notifications...");
-
-    let response = client
-        .post(&url)
-        .header("Authorization", auth_header)
-        .send()
-        .await
-        .map_err(|e| {
-            error!("Request failed: {e}");
-            format!("Request failed: {e}")
-        })?;
-
-    let status = response.status();
-    let response_text = response.text().await.unwrap_or_default();
-
-    if status.is_success() {
-        info!("Successfully dismissed all notifications");
-        debug!("Response: {response_text}");
-        Ok(response_text)
-    } else {
-        error!(
-            "Failed to dismiss all notifications. Status: {status:?}, Response: {response_text}"
-        );
-        Err(format!(
-            "Failed to dismiss all notifications: {response_text:?}"
-        ))
-    }
+    api_client.post("/notifications/dismiss-all", &()).await
 }
 
 /// Tauri command that shows a system notification (using the Tauri plugin).
@@ -300,6 +235,7 @@ pub async fn show_system_notification(
 // === Polling-Related State ===
 // =============================
 
+// Polling state now holds ApiClient
 #[derive(Debug, Default)]
 pub struct PollingState {
     pub task_handle: Mutex<Option<JoinHandle<()>>>,
@@ -309,146 +245,39 @@ pub struct PollingState {
 #[tauri::command]
 pub async fn start_notification_polling(
     window: Window,
-    state: State<'_, AuthState>,
+    auth_state: State<'_, Arc<Mutex<AuthState>>>,
+    config: State<'_, Arc<AppConfig>>,
     polling_state: State<'_, Arc<PollingState>>,
 ) -> Result<(), String> {
     info!("Starting notification polling...");
-
-    // Check if polling is already active.
-    let mut handle_guard = polling_state.task_handle.lock().await;
-    if handle_guard.is_some() {
-        info!("Notification polling already active");
+    let polling_client = ApiClient::new((**config).clone(), auth_state.inner().clone());
+    let window = window.clone();
+    let mut task_handle = polling_state.task_handle.lock().await;
+    if task_handle.is_some() {
         return Ok(());
     }
-
-    // Clone what we need for the async task.
-    let window_clone = window.clone();
-    let state_clone = state.inner().clone();
-
     let handle = tokio::spawn(async move {
-        let mut last_count: i64 = 0;
-        let mut error_count = 0;
-        let mut backoff_seconds = 10;
-        let mut consecutive_success = 0;
-
         loop {
-            let guard = state_clone.token.lock().await;
-            let should_poll = guard.is_some();
-            drop(guard);
-
-            if !should_poll {
-                tokio::time::sleep(Duration::from_secs(10)).await;
-                continue;
-            }
-
-            if error_count > 5 {
-                info!("Too many errors, backing off for {backoff_seconds} seconds");
-                tokio::time::sleep(Duration::from_secs(backoff_seconds)).await;
-                backoff_seconds = (backoff_seconds * 2).min(300);
-                error_count = 0;
-                continue;
-            }
-
-            let mut success = false;
-
-            match get_notification_count_internal(&state_clone).await {
-                Ok(count_json) => match serde_json::from_str::<CountResponse>(&count_json) {
-                    Ok(count_resp) => {
-                        let unread_count = count_resp.data.unread;
-
-                        if let Err(e) = window_clone.emit("notification_count_updated", unread_count)
-                        {
-                            error!("Failed to emit notification count event: {e}");
-                            error_count += 1;
-                        } else {
-                            success = true;
-
-                            if unread_count > last_count && last_count > 0 {
-                                match get_notifications_internal(&state_clone).await {
-                                    Ok(notif_json) => {
-                                        match serde_json::from_str::<NotificationResponse>(
-                                            &notif_json,
-                                        ) {
-                                            Ok(notif_resp) => {
-                                                let added =
-                                                    (unread_count - last_count) as usize;
-                                                let new_notifs = &notif_resp.data
-                                                    [..added.min(notif_resp.data.len())];
-
-                                                for notif in new_notifs {
-                                                    let title =
-                                                        &notif.notification.title;
-                                                    let body = notif
-                                                        .notification
-                                                        .body
-                                                        .clone()
-                                                        .unwrap_or_default();
-
-                                                    if let Err(e) = show_system_notification(
-                                                        window_clone.clone(),
-                                                        title.clone(),
-                                                        body,
-                                                    )
-                                                    .await
-                                                    {
-                                                        error!("Failed to show system notification: {e}");
-                                                    }
-
-                                                    if let Err(e) = window_clone
-                                                        .emit("new_notification", notif)
-                                                    {
-                                                        error!("Failed to emit new notification event: {e}");
-                                                    }
-                                                }
-                                            }
-                                            Err(e) => {
-                                                error!("Failed to parse notifications: {e}");
-                                                error_count += 1;
-                                                success = false;
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to fetch notifications: {e}");
-                                        error_count += 1;
-                                        success = false;
-                                    }
-                                }
-                            }
-
-                            last_count = unread_count;
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to parse notification count: {e}");
-                        error_count += 1;
-                    }
-                },
+            match polling_client.get("/notifications/count").await {
+                Ok(count) => {
+                    let _ = window.emit("notification_count", count);
+                }
                 Err(e) => {
-                    if !e.contains("No valid authentication token found") {
-                        error!("Error polling notifications: {e}");
-                        error_count += 1;
-                    }
+                    error!("Polling error: {}", e);
                 }
             }
-
-            if success {
-                error_count = 0;
-                consecutive_success += 1;
-                if consecutive_success >= 3 {
-                    backoff_seconds = 10;
-                    consecutive_success = 0;
+            match polling_client.get("/notifications?include_dismissed=false").await {
+                Ok(notifications) => {
+                    let _ = window.emit("notifications", notifications);
                 }
-            } else {
-                consecutive_success = 0;
+                Err(e) => {
+                    error!("Polling error: {}", e);
+                }
             }
-
             tokio::time::sleep(Duration::from_secs(30)).await;
         }
     });
-
-    *handle_guard = Some(handle);
-
+    *task_handle = Some(handle);
     Ok(())
 }
 
@@ -457,14 +286,10 @@ pub async fn start_notification_polling(
 pub async fn stop_notification_polling(
     polling_state: State<'_, Arc<PollingState>>,
 ) -> Result<(), String> {
-    info!("Stopping notification polling...");
-
-    let mut handle_guard = polling_state.task_handle.lock().await;
-    if let Some(handle) = handle_guard.take() {
+    let mut task_handle = polling_state.task_handle.lock().await;
+    if let Some(handle) = task_handle.take() {
         handle.abort();
-        info!("Notification polling stopped");
     }
-
     Ok(())
 }
 
@@ -472,57 +297,24 @@ pub async fn stop_notification_polling(
 #[tauri::command]
 pub async fn manual_refresh_notifications(
     window: Window,
-    state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
 ) -> Result<(), String> {
     info!("Manual refresh of notifications requested");
-
-    // 1) Get notification count
-    match get_notification_count_internal(&state).await {
-        Ok(count_json) => match serde_json::from_str::<CountResponse>(&count_json) {
-            Ok(count_resp) => {
-                let unread_count = count_resp.data.unread;
-
-                // Emit event to update UI with count
-                if let Err(e) = window.emit("notification_count_updated", unread_count) {
-                    error!("Failed to emit notification count event: {e}");
-                }
-
-                // 2) Get full notifications
-                match get_notifications_internal(&state).await {
-                    Ok(notif_json) => {
-                        match serde_json::from_str::<NotificationResponse>(&notif_json) {
-                            Ok(notif_resp) => {
-                                // Emit event with full notifications
-                                if let Err(e) =
-                                    window.emit("notifications_refreshed", &notif_resp.data)
-                                {
-                                    error!("Failed to emit notifications refresh event: {e}");
-                                    return Err(format!("Failed to notify frontend: {e}"));
-                                }
-
-                                info!("Manual refresh completed successfully");
-                                Ok(())
-                            }
-                            Err(e) => {
-                                error!("Failed to parse notifications: {e}");
-                                Err(format!("Failed to parse notifications: {e}"))
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to fetch notifications: {e}");
-                        Err(format!("Failed to fetch notifications: {e}"))
-                    }
-                }
-            }
-            Err(e) => {
-                error!("Failed to parse notification count: {e}");
-                Err(format!("Failed to parse notification count: {e}"))
-            }
-        },
+    match api_client.get("/notifications/count").await {
+        Ok(count) => {
+            let _ = window.emit("notification_count", count);
+        }
         Err(e) => {
-            error!("Error fetching notification count: {e}");
-            Err(format!("Error fetching notification count: {e}"))
+            error!("Manual refresh error: {}", e);
         }
     }
+    match api_client.get("/notifications?include_dismissed=false").await {
+        Ok(notifications) => {
+            let _ = window.emit("notifications", notifications);
+        }
+        Err(e) => {
+            error!("Manual refresh error: {}", e);
+        }
+    }
+    Ok(())
 }

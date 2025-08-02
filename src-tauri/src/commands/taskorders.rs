@@ -1,75 +1,114 @@
-use crate::utils::get_auth_header;
-use crate::auth::login::AuthState;
-use log::{debug, error, info};
-use reqwest::Client;
+use crate::services::api_client::ApiClient;
+use log::info;
 use tauri::State;
+use serde::Serialize;
+
+#[derive(Serialize)]
+struct NewTaskOrderRequest {
+    pub contract_id: Option<i32>,
+    pub name: String,
+    pub status: String,
+    pub task_order_type: String,
+    pub producer: Option<String>,
+    pub cor: Option<String>,
+    pub pop: Option<String>,
+    pub price: Option<f64>,
+}
+
+#[derive(Serialize)]
+struct UpdateTaskOrderRequest {
+    pub name: Option<String>,
+    pub status: Option<String>,
+    pub producer: Option<String>,
+    pub cor: Option<String>,
+    pub pop: Option<String>,
+    pub price: Option<f64>,
+}
+
+#[tauri::command(rename_all="snake_case")]
+pub async fn create_task_order(
+    api_client: State<'_, ApiClient>,
+    contract_id: Option<i32>,
+    name: String,
+    status: String,
+    producer: Option<String>,
+    cor: Option<String>,
+    pop: Option<String>,
+    price: Option<f64>,
+    task_order_type: String,
+) -> Result<String, String> {
+    info!("Creating new task order: {}", name);
+
+    let request = NewTaskOrderRequest {
+        contract_id,
+        name,
+        status,
+        task_order_type,
+        producer,
+        cor,
+        pop,
+        price,
+    };
+
+    api_client.post("/taskorders", &request).await
+}
+
+#[tauri::command(rename_all="snake_case")]
+pub async fn get_all_taskorders(
+    api_client: State<'_, ApiClient>,
+) -> Result<String, String> {
+    info!("Fetching all task orders...");
+    api_client.get("/taskorders").await
+}
 
 #[tauri::command(rename_all="snake_case")]
 pub async fn get_task_order(
-    state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
     taskorder_id: i32,
 ) -> Result<String, String> {
-    let client = Client::new();
-    let url = format!("http://localhost:3000/taskorders/{taskorder_id}");
-
-    let auth_header = get_auth_header(&state).await?;
-
-    info!("Fetching task order details");
-
-    let response = client
-        .get(&url)
-        .header("Authorization", auth_header)
-        .send()
-        .await
-        .map_err(|e| {
-            error!("Request failed: {e}");
-            format!("Request Failed: {e}")
-        })?;
-
-    let status = response.status();
-    let response_text = response.text().await.unwrap_or_default();
-
-    if status.is_success() {
-        info!("Successfully retrived task");
-        debug!("Response: {response_text}");
-        Ok(response_text)
-    } else {
-        error!("Failed to retrive task. Status: {status}, Response: {response_text}");
-
-        Err(format!("Failed to retrived task: {response_text}"))
-    }
+    info!("Fetching task order details for ID: {}", taskorder_id);
+    api_client.get(&format!("/taskorders/{}", taskorder_id)).await
 }
 
 #[tauri::command(rename_all="snake_case")]
 pub async fn get_taskorder_products(
-    state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
     taskorder_id: i32,
 ) -> Result<String, String> {
-    let client = Client::new();
-    let url = format!("http://localhost:3000/products?taskorder_id={taskorder_id}");
+    info!("Fetching products for task order: {}", taskorder_id);
+    api_client.get(&format!("/products?taskorder_id={}", taskorder_id)).await
+}
 
-    let auth_header = get_auth_header(&state).await?;
+#[tauri::command(rename_all="snake_case")]
+pub async fn check_task_order_edit_permission(
+    api_client: State<'_, ApiClient>,
+    taskorder_id: i32,
+) -> Result<String, String> {
+    info!("Checking edit permission for task order: {}", taskorder_id);
+    api_client.get(&format!("/taskorders/{}/permissions", taskorder_id)).await
+}
 
-    let response = client
-        .get(&url)
-        .header("Authorization", auth_header)
-        .send()
-        .await
-        .map_err(|e| {
-            error!("Request failed: {e}");
-            format!("Request failed: {e}")
-        })?;
+#[tauri::command(rename_all="snake_case")]
+pub async fn update_task_order(
+    api_client: State<'_, ApiClient>,
+    taskorder_id: i32,
+    name: Option<String>,
+    status: Option<String>,
+    producer: Option<String>,
+    cor: Option<String>,
+    pop: Option<String>,
+    price: Option<f64>,
+) -> Result<String, String> {
+    info!("Updating task order: {}", taskorder_id);
 
-    let status = response.status();
-    let response_text = response.text().await.unwrap_or_default();
+    let request = UpdateTaskOrderRequest {
+        name,
+        status,
+        producer,
+        cor,
+        pop,
+        price,
+    };
 
-    if status.is_success() {
-        info!("Successfully retried taskorder products");
-        debug!("Response: {response_text}");
-        Ok(response_text)
-    } else {
-        error!("Failed to retrive taskorder pdoucts. Status: {status} Response: {response_text}");
-        Err(format!("Failed to retreive taskorder products: {response_text}"))
-    }
-    
+    api_client.put(&format!("/taskorders/{}", taskorder_id), &request).await
 }

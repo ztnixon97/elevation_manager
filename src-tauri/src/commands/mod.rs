@@ -3,6 +3,7 @@ pub mod contracts;
 pub mod notifications;
 pub mod products;
 pub mod reviews;
+pub mod settings;
 pub mod taskorders;
 pub mod team;
 pub mod users;

@@ -1,6 +1,7 @@
 // src/context/NotificationContext.tsx
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useSettings } from './SettingsContext';
 import { listen } from '@tauri-apps/api/event';
 import { AuthContext } from './AuthContext';
 
@@ -61,6 +62,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated } = useContext(AuthContext);
+  const { settings } = useSettings();
   const [pollingStarted, setPollingStarted] = useState<boolean>(false);
 
   // Fetch notifications from backend
@@ -175,8 +177,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Start backend polling when authenticated
   useEffect(() => {
-    if (isAuthenticated && !pollingStarted) {
-      // Initialize polling
+    if (isAuthenticated && !pollingStarted && settings.notifications.enabled) {
+      // Initialize polling with settings-based interval
       invoke('start_notification_polling')
         .then(() => {
           console.log('Notification polling started');
@@ -195,7 +197,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
       };
     }
-  }, [isAuthenticated, pollingStarted]);
+  }, [isAuthenticated, pollingStarted, settings.notifications.enabled, settings.notifications.pollingInterval]);
 
   // Manual refresh function that calls backend refresh
   const refreshNotifications = async () => {

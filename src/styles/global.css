@@ -1,0 +1,111 @@
+/* Global CSS Variables for Settings */
+:root {
+  /* Font Size */
+  --app-font-size: 14px;
+  
+  /* Display Density */
+  --app-spacing: 8px;
+  --app-compact-spacing: 4px;
+  --app-comfortable-spacing: 8px;
+  --app-spacious-spacing: 16px;
+  
+  /* Animations */
+  --app-animations: auto;
+  --app-transition-duration: 0.3s;
+  
+  /* Auto Refresh */
+  --app-refresh-interval: 60s;
+  
+  /* Component Spacing */
+  --app-card-padding: var(--app-spacing);
+  --app-section-gap: calc(var(--app-spacing) * 2);
+  --app-button-spacing: var(--app-spacing);
+  
+  /* Typography */
+  --app-text-size: var(--app-font-size);
+  --app-heading-size: calc(var(--app-font-size) * 1.5);
+  --app-small-text: calc(var(--app-font-size) * 0.875);
+  
+  /* Layout */
+  --app-container-padding: calc(var(--app-spacing) * 2);
+  --app-border-radius: 8px;
+  --app-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Apply font size globally */
+* {
+  font-size: var(--app-text-size);
+}
+
+/* Apply spacing to common components */
+.MuiCard-root {
+  padding: var(--app-card-padding) !important;
+}
+
+.MuiBox-root {
+  gap: var(--app-section-gap) !important;
+}
+
+.MuiButton-root {
+  margin: var(--app-button-spacing) !important;
+}
+
+/* Animation control */
+* {
+  transition: var(--app-transition-duration) ease-in-out;
+}
+
+/* Disable animations when setting is off */
+.no-animations * {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Density classes */
+.density-compact {
+  --app-spacing: var(--app-compact-spacing);
+}
+
+.density-comfortable {
+  --app-spacing: var(--app-comfortable-spacing);
+}
+
+.density-spacious {
+  --app-spacing: var(--app-spacious-spacing);
+}
+
+/* Auto refresh indicator */
+.auto-refresh-indicator {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.auto-refresh-indicator.visible {
+  opacity: 1;
+}
+
+/* Font size classes */
+.font-size-small {
+  --app-font-size: 12px;
+}
+
+.font-size-medium {
+  --app-font-size: 14px;
+}
+
+.font-size-large {
+  --app-font-size: 16px;
+}
+
+.font-size-extra-large {
+  --app-font-size: 18px;
+} 

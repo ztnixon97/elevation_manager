@@ -1,87 +1,30 @@
-use crate::auth::login::AuthState;
-use crate::utils::get_auth_header;
+use crate::services::api_client::ApiClient;
 use log::{debug, error, info};
-use reqwest::Client;
 use tauri::State;
 
 #[tauri::command]
 pub async fn get_user_role(
-    state: State<'_, AuthState>,
+    api_client: State<'_, ApiClient>,
     username: String,
 ) -> Result<String, String> {
-    let client = Client::new();
-    let url = format!("http://localhost:3000/users/{username}/role");
-
-    let auth_header = get_auth_header(&state).await?;
-    debug!(
-        "Sending role request with header: {}",
-        auth_header.clone()
-    );
-
-    let response = client
-        .get(&url)
-        .header("Authorization", auth_header)
-        .send()
-        .await
-        .map_err(|e| {
-            error!("Request failed: {e}");
-            format!("Request failed: {e}")
-        })?;
-
-    let status = response.status();
-    let response_text = response.text().await.unwrap_or_default();
-
-    if status.is_success() {
-        // ✅ Extract just the role from JSON response
-        let role: String = match serde_json::from_str::<serde_json::Value>(&response_text) {
-            Ok(json) => json["data"].as_str().unwrap_or("unknown").to_string(),
-            Err(_) => return Err("Failed to parse role from response".to_string()),
-        };
-
-        info!(
-            "Successfully retrieved user role for username: {username}"
-        );
-        debug!("Role: {role}");
-        Ok(role)
-    } else {
-        error!(
-            "Failed to retrieve user role. Status: {status}, Response: {response_text}"
-        );
-        Err(format!("Failed to retrieve user role: {response_text}"))
-    }
+    let url = format!("/users/{}/role", username);
+    debug!("Sending role request for username: {}", username);
+    let response_text = api_client.get(&url).await?;
+    // ✅ Extract just the role from JSON response
+    let role: String = match serde_json::from_str::<serde_json::Value>(&response_text) {
+        Ok(json) => json["data"].as_str().unwrap_or("unknown").to_string(),
+        Err(_) => return Err("Failed to parse role from response".to_string()),
+    };
+    info!("Successfully retrieved user role for username: {}", username);
+    debug!("Role: {}", role);
+    Ok(role)
 }
 
 #[tauri::command]
-pub async fn get_users(state: State<'_, AuthState>) -> Result<String, String> {
-    let client = Client::new();
-    let auth_header = get_auth_header(&state)
-        .await
-        .map_err(|e| format!("Authentication error: {e}"))?;
-
-    let query_url = "http://localhost:3000/users".to_string();
-    info!("Fetrching users");
-
-    let user_response = client
-        .get(&query_url)
-        .header("Authorization", &auth_header)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch users: Error {e}"))?;
-
-    let status = user_response.status();
-    let user_json = user_response
-        .text()
-        .await
-        .unwrap_or_else(|_| "No response".to_string());
-
-    if status.is_success() {
-        info!("Successfully retrived users");
-        debug!("Respnose: {user_json}");
-        Ok(user_json)
-    } else {
-        error!(
-            "Failed to retrieve  users. Status: {status}, Response: {user_json}"
-        );
-        Err(format!("Failed to retrieve  users: {user_json}"))
-    }
+pub async fn get_users(api_client: State<'_, ApiClient>) -> Result<String, String> {
+    info!("Fetching users");
+    let user_json = api_client.get("/users").await?;
+    info!("Successfully retrieved users");
+    debug!("Response: {}", user_json);
+    Ok(user_json)
 }

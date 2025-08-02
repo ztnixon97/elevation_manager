@@ -90,6 +90,7 @@ pub async fn register(
     let response_json: serde_json::Value = serde_json::from_str(&response)
         .map_err(|e| format!("❌ JSON parsing error: {e}"))?;
 
+    info!("🔐 Registration response: {:?}", response_json);
     if response_json.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
         info!("✅ Registration succeeded. Proceeding to login.");
         // Automatically login after registration

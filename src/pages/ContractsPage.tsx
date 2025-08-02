@@ -40,6 +40,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import WorkIcon from '@mui/icons-material/Work';
 
 import { format, parseISO } from 'date-fns';
 
@@ -64,13 +65,15 @@ interface ContractDetails {
   modification_count: number;
 }
 
+// Updated interface to match your database schema
 interface TaskOrderSummary {
   id: number;
-  contract_id: number;
+  contract_id: number | null; // Can be null for internal task orders
+  task_order_type: 'Contract' | 'Internal';
   name: string;
   producer?: string;
-  period_of_performance?: string;
-  price?: string;
+  pop?: string; // Your database uses 'pop' not 'period_of_performance'
+  price?: number; // Should be number, not string
   status: string;
   product_count?: number;
 }
@@ -198,7 +201,12 @@ const ContractsPage: React.FC = () => {
   };
 
   const handleViewTaskOrder = (taskOrderId: number) => {
-    navigate(`/task-orders/${taskOrderId}`);
+    // Fixed: Ensure taskOrderId is valid before navigating
+    if (taskOrderId && taskOrderId > 0) {
+      navigate(`/task-orders/${taskOrderId}`);
+    } else {
+      setMessage({ text: 'Invalid task order ID', severity: 'error' });
+    }
   };
 
   const handleCreateContract = () => {
@@ -206,11 +214,26 @@ const ContractsPage: React.FC = () => {
   };
 
   const handleCreateTaskOrder = (contractId: number) => {
-    navigate(`/task-orders/create?contractId=${contractId}`);
+    // Fixed: Ensure contractId is valid
+    if (contractId && contractId > 0) {
+      navigate(`/task-orders/create?contractId=${contractId}`);
+    } else {
+      setMessage({ text: 'Invalid contract ID', severity: 'error' });
+    }
   };
 
   const handleViewContract = (contractId: number) => {
-    navigate(`/contracts/${contractId}`);
+    // Fixed: Ensure contractId is valid before navigating
+    if (contractId && contractId > 0) {
+      navigate(`/contracts/${contractId}`);
+    } else {
+      setMessage({ text: 'Invalid contract ID', severity: 'error' });
+    }
+  };
+
+  // Add handler for creating internal task orders
+  const handleCreateInternalTaskOrder = () => {
+    navigate('/task-orders/create?type=internal');
   };
 
   const formatCurrency = (value?: number) => {
@@ -275,16 +298,26 @@ const ContractsPage: React.FC = () => {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          Contracts
+          Contracts & Task Orders
         </Typography>
-        <Button 
-          variant="contained" 
-          color="primary" 
-          startIcon={<AddIcon />}
-          onClick={handleCreateContract}
-        >
-          New Contract
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button 
+            variant="outlined" 
+            color="primary" 
+            startIcon={<WorkIcon />}
+            onClick={handleCreateInternalTaskOrder}
+          >
+            New Internal Task Order
+          </Button>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<AddIcon />}
+            onClick={handleCreateContract}
+          >
+            New Contract
+          </Button>
+        </Box>
       </Box>
       
       <Paper sx={{ p: 2, mb: 3 }}>
@@ -313,20 +346,20 @@ const ContractsPage: React.FC = () => {
         </Box>
       </Paper>
       
-      <Grid container spacing={3}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {/* Contract Stats Summary */}
-        <Grid item xs={12}>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
+        <Box>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ flex: '1 1 300px', minWidth: 0 }}>
               <Card sx={{ bgcolor: 'primary.light', color: 'primary.contrastText' }}>
                 <CardContent>
                   <Typography variant="h4">{contracts.length}</Typography>
                   <Typography variant="body2">Total Contracts</Typography>
                 </CardContent>
               </Card>
-            </Grid>
+            </Box>
             
-            <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ flex: '1 1 300px', minWidth: 0 }}>
               <Card sx={{ bgcolor: 'success.light', color: 'success.contrastText' }}>
                 <CardContent>
                   <Typography variant="h4">
@@ -335,9 +368,9 @@ const ContractsPage: React.FC = () => {
                   <Typography variant="body2">Active Contracts</Typography>
                 </CardContent>
               </Card>
-            </Grid>
+            </Box>
             
-            <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ flex: '1 1 300px', minWidth: 0 }}>
               <Card sx={{ bgcolor: 'warning.light', color: 'warning.contrastText' }}>
                 <CardContent>
                   <Typography variant="h4">
@@ -346,9 +379,9 @@ const ContractsPage: React.FC = () => {
                   <Typography variant="body2">Pending Contracts</Typography>
                 </CardContent>
               </Card>
-            </Grid>
+            </Box>
             
-            <Grid item xs={12} sm={6} md={3}>
+            <Box sx={{ flex: '1 1 300px', minWidth: 0 }}>
               <Card sx={{ bgcolor: 'error.light', color: 'error.contrastText' }}>
                 <CardContent>
                   <Typography variant="h4">
@@ -357,35 +390,36 @@ const ContractsPage: React.FC = () => {
                   <Typography variant="body2">Expired/Completed</Typography>
                 </CardContent>
               </Card>
-            </Grid>
-          </Grid>
-        </Grid>
+            </Box>
+          </Box>
+        </Box>
         
         {/* Contract Cards */}
         {filteredContracts.length === 0 ? (
-          <Grid item xs={12}>
+          <Box>
             <Paper sx={{ p: 3, textAlign: 'center' }}>
               <Typography variant="h6" color="text.secondary">
                 No contracts found
               </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Create a new contract or internal task order to get started
+              </Typography>
             </Paper>
-          </Grid>
+          </Box>
         ) : (
           filteredContracts.map(contract => (
-            <Grid item xs={12} key={contract.id}>
+            <Box key={contract.id}>
               <Paper sx={{ overflow: 'hidden' }}>
                 <Accordion 
                   expanded={expandedContract === contract.id}
                   onChange={() => handleContractClick(contract.id)}
                 >
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Grid container alignItems="center" spacing={2}>
-                      <Grid item>
-                        <Avatar sx={{ bgcolor: 'primary.main' }}>
-                          <BusinessIcon />
-                        </Avatar>
-                      </Grid>
-                      <Grid item xs>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                      <Avatar sx={{ bgcolor: 'primary.main' }}>
+                        <BusinessIcon />
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
                         <Typography variant="h6">
                           {contract.name || 'Untitled Contract'}
                           <Chip
@@ -398,17 +432,17 @@ const ContractsPage: React.FC = () => {
                         <Typography variant="body2" color="text.secondary">
                           {contract.number || 'No ID'} • {contract.awarding_agency || 'No Agency'}
                         </Typography>
-                      </Grid>
-                      <Grid item>
+                      </Box>
+                      <Box sx={{ textAlign: 'right' }}>
                         <Typography variant="h6" color="primary">
                           {formatCurrency(contract.current_obligation)}
                         </Typography>
-                        <Typography variant="caption" align="right" display="block">
+                        <Typography variant="caption" display="block">
                           {contract.start_date ? format(parseISO(contract.start_date), 'MMM yyyy') : 'No start'} - {' '}
                           {contract.end_date ? format(parseISO(contract.end_date), 'MMM yyyy') : 'No end'}
                         </Typography>
-                      </Grid>
-                    </Grid>
+                      </Box>
+                    </Box>
                   </AccordionSummary>
                   
                   <AccordionDetails sx={{ pt: 0 }}>
@@ -418,8 +452,8 @@ const ContractsPage: React.FC = () => {
                       <Typography variant="subtitle1" gutterBottom>
                         Contract Details
                       </Typography>
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} md={6}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                        <Box sx={{ flex: '1 1 400px', minWidth: 0 }}>
                           <Box sx={{ display: 'flex', mb: 1 }}>
                             <AccountBalanceIcon sx={{ mr: 1, color: 'text.secondary' }} />
                             <Box>
@@ -455,9 +489,9 @@ const ContractsPage: React.FC = () => {
                               <Typography variant="body1">{contract.classification || 'Unclassified'}</Typography>
                             </Box>
                           </Box>
-                        </Grid>
+                        </Box>
                         
-                        <Grid item xs={12} md={6}>
+                        <Box sx={{ flex: '1 1 400px', minWidth: 0 }}>
                           <Box sx={{ display: 'flex', mb: 1 }}>
                             <CalendarTodayIcon sx={{ mr: 1, color: 'text.secondary' }} />
                             <Box>
@@ -499,8 +533,8 @@ const ContractsPage: React.FC = () => {
                               </Typography>
                             </Box>
                           </Box>
-                        </Grid>
-                      </Grid>
+                        </Box>
+                      </Box>
                     </Box>
                     
                     <Divider sx={{ mb: 2 }} />
@@ -558,14 +592,23 @@ const ContractsPage: React.FC = () => {
                                 }
                               >
                                 <ListItemAvatar>
-                                  <Avatar>
-                                    <AssignmentIcon />
+                                  <Avatar sx={{ 
+                                    bgcolor: taskOrder.task_order_type === 'Internal' ? 'secondary.main' : 'primary.main' 
+                                  }}>
+                                    {taskOrder.task_order_type === 'Internal' ? <WorkIcon /> : <AssignmentIcon />}
                                   </Avatar>
                                 </ListItemAvatar>
                                 <ListItemText
                                   primary={
                                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                       {taskOrder.name || 'Unnamed Task Order'}
+                                      <Chip 
+                                        size="small" 
+                                        label={taskOrder.task_order_type || 'Contract'}
+                                        color={taskOrder.task_order_type === 'Internal' ? 'secondary' : 'primary'}
+                                        variant="outlined"
+                                        sx={{ ml: 1, mr: 1 }}
+                                      />
                                       <Chip 
                                         size="small" 
                                         label={taskOrder.status || 'Unknown'}
@@ -581,10 +624,10 @@ const ContractsPage: React.FC = () => {
                                         variant="body2"
                                         color="text.primary"
                                       >
-                                        {taskOrder.price ? formatCurrency(parseFloat(taskOrder.price)) : '$0.00'} • {taskOrder.producer || 'Unassigned'}
+                                        {taskOrder.price ? formatCurrency(taskOrder.price) : '$0.00'} • {taskOrder.producer || 'Unassigned'}
                                       </Typography>
                                       <Typography component="div" variant="body2">
-                                        {taskOrder.period_of_performance || 'No period specified'} • {taskOrder.product_count || 0} products
+                                        {taskOrder.pop || 'No period specified'} • {taskOrder.product_count || 0} products
                                       </Typography>
                                     </React.Fragment>
                                   }
@@ -615,10 +658,10 @@ const ContractsPage: React.FC = () => {
                   </AccordionDetails>
                 </Accordion>
               </Paper>
-            </Grid>
+            </Box>
           ))
         )}
-      </Grid>
+      </Box>
 
       {/* Message Snackbar */}
       {message && (

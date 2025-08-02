@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -19,7 +19,17 @@ import {
   ListItemIcon,
   ListItemSecondaryAction,
   IconButton,
-  Container
+  Container,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 
 // Import icons
@@ -30,14 +40,19 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import EditIcon from '@mui/icons-material/Edit';
+import SaveIcon from '@mui/icons-material/Save';
+import CancelIcon from '@mui/icons-material/Cancel';
 
 import { format, parseISO } from 'date-fns';
+import { AuthContext } from '../context/AuthContext';
 
 // Types
 interface TaskOrderDetails {
   id: number;
-  contract_id: number;
+  contract_id: number | null;
   name: string;
+  task_order_type?: string; // "Contract" or "Internal"
   producer: string;
   cor: string;
   period_of_performance: string;
@@ -71,6 +86,16 @@ const TaskOrderPage: React.FC = () => {
   const [products, setProducts] = useState<ProductDetails[]>([]);
   const [error, setError] = useState<string | null>(null);
   
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<TaskOrderDetails>>({});
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSuccess, setEditSuccess] = useState(false);
+  
+  // Get user context for permissions
+  const { userRole } = useContext(AuthContext);
+  
   const mapElement = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -102,11 +127,12 @@ const TaskOrderPage: React.FC = () => {
             id: data.data.id,
             contract_id: data.data.contract_id,
             name: data.data.name,
-            producer: data.data.producer || 'Not Assigned',
-            cor: data.data.cor || 'Not Assigned',
-            period_of_performance: data.data.pop || 'Not Specified',
-            price: data.data.price || '0',
-            status: data.data.status || 'Unknown',
+            task_order_type: data.data.task_order_type,
+            producer: data.data.producer || '',
+            cor: data.data.cor || '',
+            period_of_performance: data.data.pop || '',
+            price: data.data.price || '',
+            status: data.data.status || '',
             created_at: data.data.created_at,
           });
           
@@ -124,6 +150,23 @@ const TaskOrderPage: React.FC = () => {
           } else {
             setProducts([]);
           }
+          
+          // Check edit permissions for this task order
+          try {
+            const permissionResponse = await invoke<string>('check_task_order_edit_permission', {
+              taskorder_id: taskOrderIdNum,
+            });
+            
+            const permissionData = JSON.parse(permissionResponse);
+            if (permissionData.success && permissionData.data) {
+              setCanEdit(permissionData.data.can_edit);
+            } else {
+              setCanEdit(false);
+            }
+          } catch (permissionErr) {
+            console.error("Failed to check edit permissions:", permissionErr);
+            setCanEdit(false);
+          }
         } else {
           throw new Error(data.message || "Failed to load task order details");
         }
@@ -136,6 +179,7 @@ const TaskOrderPage: React.FC = () => {
         );
       } finally {
         setLoading(false);
+        setPermissionLoading(false);
       }
     };
 
@@ -179,6 +223,160 @@ const TaskOrderPage: React.FC = () => {
     });
   };
 
+  // Check if user can edit task order - will be set by permission check
+  const [canEdit, setCanEdit] = useState(false);
+  const [permissionLoading, setPermissionLoading] = useState(true);
+  
+  // Handle edit mode toggle
+  const handleEditToggle = () => {
+    if (isEditing) {
+      // Cancel editing
+      setIsEditing(false);
+      setEditForm({});
+      setEditError(null);
+    } else {
+      // Start editing
+      setIsEditing(true);
+      setEditForm({
+        name: taskOrder?.name || '',
+        status: taskOrder?.status || '',
+        producer: taskOrder?.producer || '',
+        cor: taskOrder?.cor || '',
+        period_of_performance: taskOrder?.period_of_performance || '',
+        price: taskOrder?.price || '',
+      });
+    }
+  };
+  
+  // Handle form field changes
+  const handleEditFormChange = (field: keyof TaskOrderDetails, value: any) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+  
+  // Helper function to convert plain text to PostgreSQL range format
+  const convertToRangeFormat = (text: string): string | undefined => {
+    if (!text || text.trim() === '') return undefined;
+    
+    const trimmedText = text.trim();
+    
+    // If it's already in range format, return as is
+    if (trimmedText.includes(',') && (trimmedText.startsWith('[') || trimmedText.startsWith('('))) {
+      return trimmedText;
+    }
+    
+    // Try to parse as a simple date range (e.g., "2023-01-01 to 2023-12-31")
+    const parts = trimmedText.split(/\s+to\s+/);
+    if (parts.length === 2) {
+      const startDate = parts[0].trim();
+      const endDate = parts[1].trim();
+      
+      // Validate date format
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (dateRegex.test(startDate) && dateRegex.test(endDate)) {
+        return `[${startDate}, ${endDate})`;
+      }
+    }
+    
+    // Try to parse as a single date (treat as start date)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmedText)) {
+      return `[${trimmedText}, )`;
+    }
+    
+    // If it doesn't match any pattern, return undefined to skip this field
+    console.warn(`Invalid date format for Period of Performance: "${text}". Skipping this field.`);
+    return undefined;
+  };
+
+  // Helper function to clean form data before submission
+  const cleanFormData = (value: any): any => {
+    if (value === null || value === undefined || value === '') {
+      return undefined;
+    }
+    
+    // Handle string values
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed === '' || trimmed === 'Not Assigned' || trimmed === 'Not Specified' || trimmed === 'Unknown' || trimmed === '0') {
+        return undefined;
+      }
+      return trimmed;
+    }
+    
+    // Handle numeric values
+    if (typeof value === 'number') {
+      if (value === 0) {
+        return undefined;
+      }
+      return value;
+    }
+    
+    return value;
+  };
+
+  // Helper function to display empty values nicely
+  const displayValue = (value: any, defaultValue: string = 'Not Specified'): string => {
+    if (value === null || value === undefined || value === '') {
+      return defaultValue;
+    }
+    return String(value);
+  };
+  
+  // Handle save changes
+  const handleSaveChanges = async () => {
+    if (!taskOrder || !taskOrderId) return;
+    
+    try {
+      setEditLoading(true);
+      setEditError(null);
+      
+      const taskOrderIdNum = parseInt(taskOrderId, 10);
+      
+      // Clean form data and convert period of performance to proper format
+      const popValue = convertToRangeFormat(editForm.period_of_performance || '');
+      
+      const response = await invoke<string>('update_task_order', {
+        taskorder_id: taskOrderIdNum,
+        name: cleanFormData(editForm.name),
+        status: cleanFormData(editForm.status),
+        producer: cleanFormData(editForm.producer),
+        cor: cleanFormData(editForm.cor),
+        pop: popValue,
+        price: editForm.price && editForm.price !== '' ? parseFloat(editForm.price.toString()) : undefined,
+      });
+      
+      const data = JSON.parse(response);
+      
+      if (data.success) {
+        // Update local state
+        setTaskOrder(prev => prev ? {
+          ...prev,
+          ...editForm
+        } : null);
+        
+        setIsEditing(false);
+        setEditForm({});
+        setEditSuccess(true);
+        
+        // Auto-hide success message
+        setTimeout(() => setEditSuccess(false), 3000);
+      } else {
+        throw new Error(data.message || 'Failed to update task order');
+      }
+    } catch (err) {
+      console.error('Failed to update task order:', err);
+      setEditError(
+        typeof err === 'string' ? err : 
+        err instanceof Error ? err.message : 
+        'An error occurred while updating the task order'
+      );
+    } finally {
+      setEditLoading(false);
+    }
+  };
+  
   const handleViewProduct = (productId: number) => {
     navigate(`/products/${productId}`);
   };
@@ -222,25 +420,152 @@ const TaskOrderPage: React.FC = () => {
                   sx={{ ml: 2 }}
                   size="medium"
                 />
+                {taskOrder.task_order_type && (
+                  <Chip
+                    label={taskOrder.task_order_type}
+                    color={taskOrder.task_order_type === 'Internal' ? 'secondary' : 'primary'}
+                    sx={{ ml: 1 }}
+                    size="small"
+                  />
+                )}
               </Typography>
               
-              <Button 
-                variant="outlined" 
-                onClick={() => navigate(`/contracts/${taskOrder.contract_id}`)}
-              >
-                View Contract
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {!permissionLoading && canEdit && (
+                  <Button
+                    variant={isEditing ? "contained" : "outlined"}
+                    startIcon={isEditing ? <CancelIcon /> : <EditIcon />}
+                    onClick={handleEditToggle}
+                    disabled={editLoading}
+                  >
+                    {isEditing ? 'Cancel' : 'Edit'}
+                  </Button>
+                )}
+                {permissionLoading && (
+                  <Button
+                    variant="outlined"
+                    disabled
+                    startIcon={<CircularProgress size={16} />}
+                  >
+                    Checking Permissions...
+                  </Button>
+                )}
+                
+                <Button 
+                  variant="outlined" 
+                  disabled={!taskOrder.contract_id}
+                  onClick={() => taskOrder.contract_id && navigate(`/contracts/${taskOrder.contract_id}`)}
+                  title={!taskOrder.contract_id ? 'This is an independent task order with no associated contract' : 'View associated contract'}
+                >
+                  View Contract
+                </Button>
+              </Box>
             </Box>
             
             <Divider sx={{ mb: 3 }} />
             
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+            {/* Edit Form */}
+            {isEditing && (
+              <Paper elevation={1} sx={{ p: 3, mb: 3, bgcolor: 'grey.50' }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>Edit Task Order</Typography>
+                
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  <TextField
+                    label="Name"
+                    value={editForm.name || ''}
+                    onChange={(e) => handleEditFormChange('name', e.target.value)}
+                    fullWidth
+                    sx={{ minWidth: 250 }}
+                  />
+                  
+                  <FormControl fullWidth sx={{ minWidth: 200 }}>
+                    <InputLabel>Status</InputLabel>
+                    <Select
+                      value={editForm.status || ''}
+                      onChange={(e) => handleEditFormChange('status', e.target.value)}
+                      label="Status"
+                    >
+                      <MenuItem value="Active">Active</MenuItem>
+                      <MenuItem value="Pending">Pending</MenuItem>
+                      <MenuItem value="Completed">Completed</MenuItem>
+                      <MenuItem value="Expired">Expired</MenuItem>
+                    </Select>
+                  </FormControl>
+                  
+                  <TextField
+                    label="Producer"
+                    value={editForm.producer || ''}
+                    onChange={(e) => handleEditFormChange('producer', e.target.value)}
+                    fullWidth
+                    sx={{ minWidth: 250 }}
+                  />
+                  
+                  <TextField
+                    label="Contracting Officer Representative"
+                    value={editForm.cor || ''}
+                    onChange={(e) => handleEditFormChange('cor', e.target.value)}
+                    fullWidth
+                    sx={{ minWidth: 250 }}
+                  />
+                  
+                  <TextField
+                    label="Period of Performance"
+                    value={editForm.period_of_performance || ''}
+                    onChange={(e) => handleEditFormChange('period_of_performance', e.target.value)}
+                    fullWidth
+                    sx={{ minWidth: 250 }}
+                    placeholder="e.g., 2023-01-01 to 2023-12-31"
+                    helperText="Enter date range in format: YYYY-MM-DD to YYYY-MM-DD"
+                  />
+                  
+                  <TextField
+                    label="Price"
+                    type="number"
+                    value={editForm.price || ''}
+                    onChange={(e) => handleEditFormChange('price', e.target.value)}
+                    fullWidth
+                    sx={{ minWidth: 200 }}
+                    InputProps={{
+                      startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
+                    }}
+                  />
+                </Box>
+                
+                <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    onClick={handleSaveChanges}
+                    disabled={editLoading}
+                  >
+                    {editLoading ? <CircularProgress size={20} /> : 'Save Changes'}
+                  </Button>
+                  
+                  <Button
+                    variant="outlined"
+                    startIcon={<CancelIcon />}
+                    onClick={handleEditToggle}
+                    disabled={editLoading}
+                  >
+                    Cancel
+                  </Button>
+                </Box>
+                
+                {editError && (
+                  <Alert severity="error" sx={{ mt: 2 }}>
+                    {editError}
+                  </Alert>
+                )}
+              </Paper>
+            )}
+            
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+              <Box sx={{ flex: '1 1 300px', minWidth: 300 }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
                   <BusinessIcon sx={{ mr: 1, color: 'text.secondary', mt: 0.5 }} />
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Producer</Typography>
-                    <Typography variant="body1">{taskOrder.producer}</Typography>
+                    <Typography variant="body1">{displayValue(taskOrder.producer, 'Not Assigned')}</Typography>
                   </Box>
                 </Box>
                 
@@ -248,12 +573,12 @@ const TaskOrderPage: React.FC = () => {
                   <AssignmentIcon sx={{ mr: 1, color: 'text.secondary', mt: 0.5 }} />
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Contracting Officer Representative</Typography>
-                    <Typography variant="body1">{taskOrder.cor}</Typography>
+                    <Typography variant="body1">{displayValue(taskOrder.cor, 'Not Assigned')}</Typography>
                   </Box>
                 </Box>
-              </Grid>
+              </Box>
               
-              <Grid item xs={12} md={6}>
+              <Box sx={{ flex: '1 1 300px', minWidth: 300 }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
                   <MoneyIcon sx={{ mr: 1, color: 'text.secondary', mt: 0.5 }} />
                   <Box>
@@ -268,11 +593,11 @@ const TaskOrderPage: React.FC = () => {
                   <CalendarTodayIcon sx={{ mr: 1, color: 'text.secondary', mt: 0.5 }} />
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Period of Performance</Typography>
-                    <Typography variant="body1">{taskOrder.period_of_performance}</Typography>
+                    <Typography variant="body1">{displayValue(taskOrder.period_of_performance, 'Not Specified')}</Typography>
                   </Box>
                 </Box>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
           </Paper>
           
           <Paper elevation={2} sx={{ p: 3 }}>
@@ -364,6 +689,18 @@ const TaskOrderPage: React.FC = () => {
       ) : (
         <Alert severity="info">No task order found with the given ID.</Alert>
       )}
+      
+      {/* Success Notification */}
+      <Snackbar
+        open={editSuccess}
+        autoHideDuration={3000}
+        onClose={() => setEditSuccess(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setEditSuccess(false)} severity="success" sx={{ width: '100%' }}>
+          Task order updated successfully!
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

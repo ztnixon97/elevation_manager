@@ -1,9 +1,11 @@
 // src/App.tsx - Modified to include NotificationProvider
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import "./styles/global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
 import { ThemeProviderWrapper } from "./context/ThemeContext";
 import { NotificationProvider } from "./context/NotificationContext";
+import { SettingsProvider } from "./context/SettingsContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import TeamsPage from "./pages/TeamsPage";
@@ -24,21 +26,28 @@ import CreateReviewPage from "./pages/CreraateReviewPage.tsx";
 import ReviewEditor from './components/ReviewEditor';
 import ContractsPage from "./pages/ContractsPage.tsx";
 import ContractDetailsPage from "./pages/ContractDetailsPage.tsx";
-import TaskOrderPage from "./pages/TaskOrdersPage.tsx"; 
-const queryClient = new QueryClient();
+import ContractCreatePage from "./pages/ContractCreatePage.tsx";
+import TaskOrderPage from "./pages/TaskOrdersPage.tsx";
+import TaskOrderCreatePage from "./pages/TaskOrderCreatePage.tsx";
+import TaskOrdersListPage from "./pages/TaskOrdersListPage.tsx";
+import ProfilePage from "./pages/ProfilePage.tsx";
+import SettingsPage from "./pages/SettingsPage.tsx";
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
+      retry: 1,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+    },
+  },
+});
 
 // Component to handle conditional sidebar rendering
 function AppLayout() {
   const { isAuthenticated } = useContext(AuthContext);
-
-  // Start notification polling when app starts and user is authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      invoke('start_notification_polling').catch(err => {
-        console.error('Failed to start notification polling:', err);
-      });
-    }
-  }, [isAuthenticated]);
 
   return (
     <Box sx={{ display: "flex", width: "100vw", height: "100vh" }}>
@@ -73,7 +82,12 @@ function AppLayout() {
           <Route path="/reviews/:reviewId" element={<ReviewEditor />} />
           <Route path ="/contracts" element={isAuthenticated ? <ContractsPage /> : <Login />} />
           <Route path = "/contracts/:contractId" element={isAuthenticated ? <ContractDetailsPage /> : <Login />} />
+          <Route path = "/contracts/create" element={isAuthenticated ? <ContractCreatePage /> : <Login />} />
+          <Route path = "/task-orders" element={isAuthenticated ? <TaskOrdersListPage /> : <Login />} />
           <Route path = "/task-orders/:taskOrderId" element={isAuthenticated ? <TaskOrderPage /> : <Login />} />
+          <Route path = "/task-orders/create" element={isAuthenticated ? <TaskOrderCreatePage /> : <Login />} />
+          <Route path = "/profile" element={isAuthenticated ? <ProfilePage /> : <Login />} />
+          <Route path = "/settings" element={isAuthenticated ? <SettingsPage /> : <Login />} />
           {/* Add more routes here */}
           {/* Redirect to login if not authenticated */}
         </Routes>
@@ -89,9 +103,11 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            <NotificationProvider>
-              <AppLayout />
-            </NotificationProvider>
+            <SettingsProvider>
+              <NotificationProvider>
+                <AppLayout />
+              </NotificationProvider>
+            </SettingsProvider>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>
