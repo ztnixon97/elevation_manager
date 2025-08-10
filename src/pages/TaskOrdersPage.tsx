@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
+import InteractiveMap, { InteractiveMapRef } from '../components/InteractiveMap';
 import {
   Box,
   Typography,
@@ -43,6 +44,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
+import { Add } from '@mui/icons-material';
 
 import { format, parseISO } from 'date-fns';
 import { AuthContext } from '../context/AuthContext';
@@ -96,7 +98,7 @@ const TaskOrderPage: React.FC = () => {
   // Get user context for permissions
   const { userRole } = useContext(AuthContext);
   
-  const mapElement = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<InteractiveMapRef>(null);
 
   useEffect(() => {
     const fetchTaskOrderDetails = async () => {
@@ -381,6 +383,18 @@ const TaskOrderPage: React.FC = () => {
     navigate(`/products/${productId}`);
   };
 
+  // Calculate map center based on products with geometry
+  const getMapCenter = () => {
+    const productsWithGeometry = products.filter(p => p.geom);
+    if (productsWithGeometry.length === 0) {
+      return { lat: 39.8283, lon: -98.5795 }; // Default center (US)
+    }
+
+    // For now, return a default center - in the future we could parse WKT
+    // and calculate actual bounds
+    return { lat: 39.8283, lon: -98.5795 };
+  };
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Back button */}
@@ -661,28 +675,28 @@ const TaskOrderPage: React.FC = () => {
             )}
             
             <Box sx={{ mt: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Product Locations
-              </Typography>
-              <Paper 
-                variant="outlined"
-                sx={{ 
-                  width: '100%', 
-                  height: '400px',
-                  p: 0,
-                  backgroundColor: '#f5f5f5',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center'
-                }}
-              >
-                <div ref={mapElement} style={{ width: '100%', height: '100%' }}>
-                  {/* OpenLayers map will be rendered here */}
-                  <Box sx={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <Typography color="text.secondary">Map view will be implemented here</Typography>
-                  </Box>
-                </div>
-              </Paper>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  Product Locations & Management
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={() => navigate(`/products/create?taskOrderId=${taskOrder.id}&taskOrderName=${encodeURIComponent(taskOrder.name)}`)}
+                >
+                  Create Product
+                </Button>
+              </Box>
+              
+              <InteractiveMap
+                height={400}
+                geometryType="Point"
+                showDrawingTools={false}
+                baseLayer="satellite"
+                initialLat={products.length > 0 ? getMapCenter().lat : 39.8283}
+                initialLon={products.length > 0 ? getMapCenter().lon : -98.5795}
+                ref={mapRef}
+              />
             </Box>
           </Paper>
         </>

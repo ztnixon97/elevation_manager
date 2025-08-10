@@ -43,6 +43,11 @@ impl ApiClient {
         self.request(Method::PUT, endpoint, Some(body)).await
     }
 
+    // PATCH request - returns raw string
+    pub async fn patch<T: Serialize>(&self, endpoint: &str, body: &T) -> Result<String, String> {
+        self.request(Method::PATCH, endpoint, Some(body)).await
+    }
+
     // DELETE request - returns raw string
     pub async fn delete(&self, endpoint: &str) -> Result<String, String> {
         self.request(Method::DELETE, endpoint, None::<&()>).await

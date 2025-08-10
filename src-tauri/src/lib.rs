@@ -89,12 +89,16 @@ pub async fn run() {
             get_all_products,
             get_all_product_types,
             get_user_products,
+            create_product,
+            create_product_type,
             checkout_product,
             assign_product_to_user,
             get_product_details,
             get_product_reviews,
             delete_product_assignment,
             get_product_assignments,
+            update_product,
+            update_product_status,
             
             // Review commands (keep existing until migrated)
             save_review_draft,

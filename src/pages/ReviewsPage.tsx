@@ -45,6 +45,7 @@ import { format, parseISO } from 'date-fns';
 import { AuthContext } from '../context/AuthContext';
 import ReviewEditor from '../components/ReviewEditor';
 import ReviewViewer from '../components/ReviewViewer';
+import ReviewApprovalDialog from '../components/ReviewApprovalDialog';
 import { useNavigate } from 'react-router-dom';
 
 interface Review {
@@ -103,6 +104,10 @@ const ReviewsPage: React.FC = () => {
   const [draftContent, setDraftContent] = useState<string | null>(null);
   const [draftVersion, setDraftVersion] = useState<number>(0);
   const dataLoadedRef = useRef<Boolean>(false); // Track if data has been loaded
+  
+  // Approval dialog state
+  const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState<boolean>(false);
+  const [reviewForApproval, setReviewForApproval] = useState<Review | null>(null);
 
   const navigate = useNavigate();
   const fetchData = async (): Promise<void> => {
@@ -451,10 +456,27 @@ const handleStartNewReview = async (): Promise<void> => {
     }
   };
 
-  const handleApproveReview = async (review: Review): Promise<void> => {
-    setLoading(true);
+  // Enhanced approval with dialog
+  const handleOpenApprovalDialog = (review: Review) => {
+    setReviewForApproval(review);
+    setIsApprovalDialogOpen(true);
+  };
+
+  const handleApproveReview = async (review: Review, comments?: string, productStatus?: string): Promise<void> => {
     try {
       await invoke('approve_review', { review_id: review.id });
+      
+      // If product status was specified, update the product
+      if (productStatus) {
+        try {
+          await invoke('update_product_status', {
+            product_id: review.product_id,
+            status: productStatus
+          });
+        } catch (err) {
+          console.warn('Failed to update product status:', err);
+        }
+      }
       
       // Update local state
       const updatedReview = { ...review, review_status: 'approved' };
@@ -471,7 +493,7 @@ const handleStartNewReview = async (): Promise<void> => {
       ));
       
       setMessage({
-        text: 'Review approved successfully',
+        text: `Review approved successfully${productStatus ? ` and product status updated to ${productStatus}` : ''}`,
         severity: 'success',
       });
     } catch (err) {
@@ -480,13 +502,11 @@ const handleStartNewReview = async (): Promise<void> => {
         text: typeof err === 'string' ? err : 'Failed to approve review',
         severity: 'error',
       });
-    } finally {
-      setLoading(false);
+      throw err; // Re-throw to let dialog handle it
     }
   };
 
-  const handleRejectReview = async (review: Review): Promise<void> => {
-    setLoading(true);
+  const handleRejectReview = async (review: Review, comments?: string, reason?: string): Promise<void> => {
     try {
       await invoke('reject_review', { review_id: review.id });
       
@@ -505,7 +525,7 @@ const handleStartNewReview = async (): Promise<void> => {
       ));
       
       setMessage({
-        text: 'Review rejected successfully',
+        text: `Review rejected successfully${reason ? ` (${reason})` : ''}`,
         severity: 'success',
       });
     } catch (err) {
@@ -514,8 +534,7 @@ const handleStartNewReview = async (): Promise<void> => {
         text: typeof err === 'string' ? err : 'Failed to reject review',
         severity: 'error',
       });
-    } finally {
-      setLoading(false);
+      throw err; // Re-throw to let dialog handle it
     }
   };
 
@@ -619,24 +638,14 @@ const handleStartNewReview = async (): Promise<void> => {
                 
                 {/* Only show approve/reject buttons for pending reviews if user is team lead */}
                 {isTeamLead && review.review_status === 'pending' && (
-                  <>
-                    <IconButton 
-                      edge="end" 
-                      onClick={() => handleApproveReview(review)}
-                      title="Approve"
-                      color="success"
-                    >
-                      <CheckIcon />
-                    </IconButton>
-                    <IconButton 
-                      edge="end" 
-                      onClick={() => handleRejectReview(review)}
-                      title="Reject"
-                      color="error"
-                    >
-                      <CloseIcon />
-                    </IconButton>
-                  </>
+                  <IconButton 
+                    edge="end" 
+                    onClick={() => handleOpenApprovalDialog(review)}
+                    title="Approve/Reject Review"
+                    color="primary"
+                  >
+                    <CheckIcon />
+                  </IconButton>
                 )}
               </ListItemSecondaryAction>
             </ListItem>
@@ -776,32 +785,18 @@ const handleStartNewReview = async (): Promise<void> => {
         <DialogActions>
           <Button onClick={() => setIsDetailDialogOpen(false)}>Close</Button>
           {isTeamLead && selectedReview?.review_status === 'pending' && (
-            <>
-              <Button
-                onClick={() => {
-                  setIsDetailDialogOpen(false);
-                  if (selectedReview) {
-                    handleApproveReview(selectedReview);
-                  }
-                }}
-                variant="contained"
-                color="success"
-              >
-                Approve
-              </Button>
-              <Button
-                onClick={() => {
-                  setIsDetailDialogOpen(false);
-                  if (selectedReview) {
-                    handleRejectReview(selectedReview);
-                  }
-                }}
-                variant="contained"
-                color="error"
-              >
-                Reject
-              </Button>
-            </>
+            <Button
+              onClick={() => {
+                setIsDetailDialogOpen(false);
+                if (selectedReview) {
+                  handleOpenApprovalDialog(selectedReview);
+                }
+              }}
+              variant="contained"
+              color="primary"
+            >
+              Review & Approve
+            </Button>
           )}
         </DialogActions>
       </Dialog>
@@ -830,6 +825,19 @@ const handleStartNewReview = async (): Promise<void> => {
           <Button onClick={() => handleEditorClose()}>Close</Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Review Approval Dialog */}
+      <ReviewApprovalDialog
+        open={isApprovalDialogOpen}
+        review={reviewForApproval}
+        onClose={() => {
+          setIsApprovalDialogOpen(false);
+          setReviewForApproval(null);
+        }}
+        onApprove={handleApproveReview}
+        onReject={handleRejectReview}
+        loading={loading}
+      />
       
       {/* Message Snackbar */}
       <Snackbar

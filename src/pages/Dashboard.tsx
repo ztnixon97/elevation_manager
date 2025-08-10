@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef, useContext } from 'react';
 import {
   Box,
   Typography,
-  Grid,
   Card,
   CardContent,
   Button,
@@ -569,8 +568,12 @@ const Dashboard: React.FC = () => {
       const teamsResponse = await invoke<string>('get_user_teams');
       console.debug('get_user_teams response:', teamsResponse);
       const teamsData = JSON.parse(teamsResponse);
-      if (teamsData.success && teamsData.data) {
-        setTeams(teamsData.data);
+      if (teamsData.success && Array.isArray(teamsData.data)) {
+        // Normalize team shape to { id, name }
+        const normalized = teamsData.data.map((t: any) => ({ id: t.id ?? t.team_id, name: t.name ?? t.team_name }));
+        setTeams(normalized);
+      } else if (teamsData.success && teamsData.data) {
+        setTeams([]);
       }
 
       // Fetch product types
@@ -920,56 +923,56 @@ const Dashboard: React.FC = () => {
         </Typography>
         
         {/* Stats Cards */}
-        <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+          <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
             <Card>
               <CardContent sx={{ textAlign: 'center', py: 1 }}>
                 <Typography variant="h6">{stats.totalProducts}</Typography>
                 <Typography variant="caption">Total Products</Typography>
               </CardContent>
             </Card>
-          </Grid>
-          <Grid>
+          </Box>
+          <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
             <Card>
               <CardContent sx={{ textAlign: 'center', py: 1 }}>
                 <Typography variant="h6">{stats.activeProducts}</Typography>
                 <Typography variant="caption">Active</Typography>
               </CardContent>
             </Card>
-          </Grid>
-          <Grid>
+          </Box>
+          <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
             <Card>
               <CardContent sx={{ textAlign: 'center', py: 1 }}>
                 <Typography variant="h6">{stats.pendingReviews}</Typography>
                 <Typography variant="caption">Pending Reviews</Typography>
               </CardContent>
             </Card>
-          </Grid>
-          <Grid>
+          </Box>
+          <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
             <Card>
               <CardContent sx={{ textAlign: 'center', py: 1 }}>
                 <Typography variant="h6">{stats.myAssignments}</Typography>
                 <Typography variant="caption">My Assignments</Typography>
               </CardContent>
             </Card>
-          </Grid>
-          <Grid>
+          </Box>
+          <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
             <Card>
               <CardContent sx={{ textAlign: 'center', py: 1 }}>
                 <Typography variant="h6">{stats.overdueProducts}</Typography>
                 <Typography variant="caption">Overdue</Typography>
               </CardContent>
             </Card>
-          </Grid>
-          <Grid>
+          </Box>
+          <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
             <Card>
               <CardContent sx={{ textAlign: 'center', py: 1 }}>
                 <Typography variant="h6">{stats.completedThisWeek}</Typography>
                 <Typography variant="caption">Completed This Week</Typography>
               </CardContent>
             </Card>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
 
         {/* Controls */}
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1010,7 +1013,7 @@ const Dashboard: React.FC = () => {
             <Button
               variant="outlined"
               startIcon={<AddIcon />}
-              onClick={() => navigate('/teams')}
+              onClick={() => navigate('/products/create')}
             >
               Create Products
             </Button>
@@ -1027,8 +1030,8 @@ const Dashboard: React.FC = () => {
             <Typography variant="h6">Filters</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Grid container spacing={2}>
-              <Grid>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Status</InputLabel>
                   <Select
@@ -1045,9 +1048,9 @@ const Dashboard: React.FC = () => {
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
-              <Grid>
+              <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Priority</InputLabel>
                   <Select
@@ -1064,28 +1067,30 @@ const Dashboard: React.FC = () => {
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
-              <Grid>
+              <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Team</InputLabel>
-                  <Select
+          <Select
                     multiple
-                    value={filters.teamFilter}
+            value={filters.teamFilter.filter(Boolean)}
                     onChange={(e) => setFilters({
                       ...filters,
                       teamFilter: e.target.value as string[]
                     })}
                     label="Team"
                   >
-                    {teams.map(team => (
-                      <MenuItem key={team.id} value={team.id.toString()}>{team.name}</MenuItem>
-                    ))}
+          {teams.map((team) => (
+            <MenuItem key={`team-${team.id}`} value={(team.id ?? '').toString()}>
+              {team.name}
+            </MenuItem>
+          ))}
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
-              <Grid>
+              <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Product Type</InputLabel>
                   <Select
@@ -1102,8 +1107,8 @@ const Dashboard: React.FC = () => {
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
           </AccordionDetails>
         </Accordion>
       )}

@@ -36,6 +36,7 @@ import {
   Assignment,
   Notifications as NotificationsIcon,
   AccountCircle,
+  Map as MapIcon,
 } from "@mui/icons-material";
 import NotificationDrawer from "./NotificationDrawer";
 import { useNotifications } from "../context/NotificationContext";
@@ -95,6 +96,7 @@ const Sidebar: React.FC = () => {
     { name: "Reviews", url: "/reviews", icon: <VerifiedUser /> },
     { name: "Contracts", url: "/contracts", icon: <Gavel /> },
     { name: "Task Orders", url: "/task-orders", icon: <Assignment /> },
+    { name: "QGIS Integration", url: "/qgis", icon: <MapIcon /> },
     { name: "GraphQL", url: "/dev/graphql", icon: <TextSnippet /> },
     { 
       name: "Notifications", 

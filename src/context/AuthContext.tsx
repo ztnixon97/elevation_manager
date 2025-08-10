@@ -12,6 +12,8 @@ interface AuthContextType {
   userRole?: string;
   userId?: string;
   username?: string;
+  authToken?: string | null;
+  getAuthHeaders?: () => Record<string, string>;
 }
 
 // ✅ Provide a Default Value (without authToken)
@@ -23,6 +25,8 @@ export const AuthContext = createContext<AuthContextType>({
   userRole: undefined, // Optional
   userId: undefined,
   username: undefined,
+  authToken: null,
+  getAuthHeaders: () => ({}),
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -127,7 +131,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, userRole, userId, username, login, register, logout }}>
+    <AuthContext.Provider value={{
+      isAuthenticated,
+      userRole,
+      userId,
+      username,
+      authToken,
+      getAuthHeaders: () => (authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      login,
+      register,
+      logout,
+    }}>
       {children}
     </AuthContext.Provider>
   );

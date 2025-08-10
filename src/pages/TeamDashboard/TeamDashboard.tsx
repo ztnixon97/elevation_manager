@@ -15,7 +15,6 @@ import {
   Card,
   CardContent,
 } from '@mui/material';
-import { Grid as MuiGrid } from '@mui/material';
 import TeamMap from './components/TeamMap';
 import MembersPanel from './components/MembersPanel';
 import ProductsPanel from './components/ProductsPanel';
@@ -77,7 +76,7 @@ const TeamDashboard: React.FC = () => {
         // Get current user's role in this team
         const userTeamsResponse = await invoke<string>('get_user_teams');
         const userTeams = JSON.parse(userTeamsResponse).data || [];
-        const currentTeam = userTeams.find((t: any) => t.id === parsedTeamId);
+        const currentTeam = userTeams.find((t: any) => (t.id ?? t.team_id) === parsedTeamId);
         
         if (currentTeam) {
           const teamRole = currentTeam.role || 'member';
@@ -97,8 +96,16 @@ const TeamDashboard: React.FC = () => {
             }
           }
         } else {
-          // User is not part of this team, redirect to teams page
-          navigate('/teams');
+          // User is not part of this team
+          // Show a warning before redirecting based on role
+          setError('You are not a member of this team. Redirecting...');
+          setTimeout(() => {
+            if (userRole === 'admin' || userRole === 'manager') {
+              navigate(`/admin/teams/${parsedTeamId}`);
+            } else {
+              navigate('/teams');
+            }
+          }, 1200);
         }
       } catch (err) {
         console.error('Failed to load team data:', err);
@@ -158,42 +165,42 @@ const TeamDashboard: React.FC = () => {
       <Box sx={{ flex: '1 1 auto', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
         {/* Scrollable Summary Section */}
         <Box sx={{ flex: '0 0 auto', overflowY: 'auto', mb: 2 }}>
-          <MuiGrid container spacing={3}>
-            <MuiGrid>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(200px, 1fr))', gap: 24 }}>
+            <Box>
               <Card sx={{ width: '100%', height: '100%' }}>
                 <CardContent>
                   <Typography variant="h6">Team Members</Typography>
                   <Typography variant="h4">{members.length}</Typography>
                 </CardContent>
               </Card>
-            </MuiGrid>
-            <MuiGrid>
+            </Box>
+            <Box>
               <Card sx={{ width: '100%', height: '100%' }}>
                 <CardContent>
                   <Typography variant="h6">Active Products</Typography>
                   <Typography variant="h4">{/* Add logic to count active products */}</Typography>
                 </CardContent>
               </Card>
-            </MuiGrid>
-            <MuiGrid>
+            </Box>
+            <Box>
               <Card sx={{ width: '100%', height: '100%' }}>
                 <CardContent>
                   <Typography variant="h6">Pending Reviews</Typography>
                   <Typography variant="h4">{/* Add logic to count pending reviews */}</Typography>
                 </CardContent>
               </Card>
-            </MuiGrid>
+            </Box>
             {isTeamLead && (
-              <MuiGrid>
+              <Box>
                 <Card sx={{ width: '100%', height: '100%' }}>
                   <CardContent>
                     <Typography variant="h6">Pending Requests</Typography>
                     <Typography variant="h4">{pendingRequestsCount}</Typography>
                   </CardContent>
                 </Card>
-              </MuiGrid>
+              </Box>
             )}
-          </MuiGrid>
+          </Box>
         </Box>
 
         {/* Tabs Section */}

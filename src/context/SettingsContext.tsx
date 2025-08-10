@@ -94,7 +94,8 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
 
   // Apply settings when they change
   useEffect(() => {
-    applySettings();
+    // Swallow errors to avoid crashing provider consumers during hot reloads
+    applySettings().catch(() => {});
   }, [settings]);
 
   const loadSettings = async () => {
@@ -126,8 +127,8 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
 
   const applySettings = async () => {
     try {
-      // Apply font size
-      await invoke('apply_font_size', { font_size: settings.display.fontSize });
+      // Apply font size (command expects `fontSize` camelCase)
+      await invoke('apply_font_size', { fontSize: settings.display.fontSize });
       
       // Apply display density
       await invoke('apply_display_density', { density: settings.display.density });

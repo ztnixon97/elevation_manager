@@ -121,8 +121,11 @@ const ProductDetailPage: React.FC = () => {
     const fetchProductDetails = async () => {
       try {
         setLoading(true);
+        if (!productId) throw new Error('Invalid product id');
+        const numericId = Number(productId);
+        if (!Number.isFinite(numericId)) throw new Error('Invalid product id');
         const response = await invoke<string | object>('get_product_details', {
-          product_id: parseInt(productId!, 10),
+          product_id: numericId,
         });
         const data = typeof response === 'string' ? JSON.parse(response) : response;
 
@@ -138,7 +141,7 @@ const ProductDetailPage: React.FC = () => {
         }
 
         const reviewsResponse = await invoke<string | object>('get_product_reviews', {
-          product_id: parseInt(productId!, 10),
+          product_id: numericId,
         });
         const reviewsData = typeof reviewsResponse === 'string' ? JSON.parse(reviewsResponse) : reviewsResponse;
 

@@ -55,13 +55,13 @@ import { ResizableImage } from './ResizeableImageExtension';
 // Custom toolbar styles
 import './Tiptap.css';
 
-import { mkdir, writeTextFile, BaseDirectory } from '@tauri-apps/plugin-fs';
+import { mkdir, BaseDirectory } from '@tauri-apps/plugin-fs';
 
-const REVIEW_STATUSES = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'pending', label: 'Pending Review' },
-  { value: 'approved', label: 'Approved' },
-];
+// const REVIEW_STATUSES = [
+//   { value: 'draft', label: 'Draft' },
+//   { value: 'pending', label: 'Pending Review' },
+//   { value: 'approved', label: 'Approved' },
+// ];
 
 const PRODUCT_STATUSES = [
   { value: 'InReview', label: 'In Review' },
@@ -338,42 +338,42 @@ const MenuBar: React.FC<MenuBarProps> = ({ editor, readOnly = false }) => {
   );
 };
 
-const prepareDirectoryStructure = async (productId: number) => {
-  console.log(`[Directory Setup] Starting directory preparation for product ${productId}`);
-  try {
-    // Create base reviews directory in AppData
-    const reviewsPath = 'reviews';
-    console.log(`[Directory Setup] Creating base directory at AppData/${reviewsPath}`);
-    await mkdir(reviewsPath, { 
-      baseDir: BaseDirectory.AppData,
-      recursive: true 
-    });
-    console.log('[Directory Setup] Base directory created successfully');
+// const prepareDirectoryStructure = async (productId: number) => {
+//   console.log(`[Directory Setup] Starting directory preparation for product ${productId}`);
+//   try {
+//     // Create base reviews directory in AppData
+//     const reviewsPath = 'reviews';
+//     console.log(`[Directory Setup] Creating base directory at AppData/${reviewsPath}`);
+//     await mkdir(reviewsPath, { 
+//       baseDir: BaseDirectory.AppData,
+//       recursive: true 
+//     });
+//     console.log('[Directory Setup] Base directory created successfully');
 
-    // Create product-specific directory
-    const productPath = `reviews/${productId}`;
-    console.log(`[Directory Setup] Creating product directory at AppData/${productPath}`);
-    await mkdir(productPath, { 
-      baseDir: BaseDirectory.AppData,
-      recursive: true 
-    });
-    console.log('[Directory Setup] Product directory created successfully');
+//     // Create product-specific directory
+//     const productPath = `reviews/${productId}`;
+//     console.log(`[Directory Setup] Creating product directory at AppData/${productPath}`);
+//     await mkdir(productPath, { 
+//       baseDir: BaseDirectory.AppData,
+//       recursive: true 
+//     });
+//     console.log('[Directory Setup] Product directory created successfully');
 
-    // Return the product path for file operations
-    return productPath;
+//     // Return the product path for file operations
+//     return productPath;
 
-  } catch (err) {
-    const errorDetails = {
-      productId,
-      errorType: err instanceof Error ? err.constructor.name : 'Unknown',
-      message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined
-    };
+//   } catch (err) {
+//     const errorDetails = {
+//       productId,
+//       errorType: err instanceof Error ? err.constructor.name : 'Unknown',
+//       message: err instanceof Error ? err.message : String(err),
+//       stack: err instanceof Error ? err.stack : undefined
+//     };
     
-    console.error('[Directory Setup] Failed to create directory structure:', errorDetails);
-    throw new Error(`Directory creation failed: ${errorDetails.message}`);
-  }
-};
+//     console.error('[Directory Setup] Failed to create directory structure:', errorDetails);
+//     throw new Error(`Directory creation failed: ${errorDetails.message}`);
+//   }
+// };
 
 const ReviewEditor: React.FC<ReviewEditorProps> = ({ 
   productId: propProductId, 
@@ -398,7 +398,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
   );
   const [productName, setProductName] = useState<string | undefined>(propProductName);
   const [productStatus, setProductStatus] = useState<string>('InReview');
-  const [reviewStatus, setReviewStatus] = useState<string>(REVIEW_STATUS.DRAFT);
+  // const [reviewStatus, setReviewStatus] = useState<string>(REVIEW_STATUS.DRAFT);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [message, setMessage] = useState<MessageState | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -484,7 +484,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
         console.log(`Setting product ID to: ${reviewDetails.product_id}`);
         
         setProductStatus(reviewDetails.product_status || 'InReview');
-        setReviewStatus(reviewDetails.review_status || REVIEW_STATUS.DRAFT);
+        // setReviewStatus(reviewDetails.review_status || REVIEW_STATUS.DRAFT);
         
         // Set read-only mode based on review status
         const statusLower = reviewDetails.review_status?.toLowerCase() || '';
@@ -552,7 +552,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
     
     // Set basic review fields
     setProductStatus(normalizeProductStatus(initialReview.product_status || ''));
-    setReviewStatus(initialReview.review_status || REVIEW_STATUS.DRAFT);
+    // setReviewStatus(initialReview.review_status || REVIEW_STATUS.DRAFT);
     
     // Check for content in initialReview
     if (initialReview.content) {

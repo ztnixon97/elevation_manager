@@ -33,6 +33,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import RateReviewIcon from '@mui/icons-material/RateReview';
 import CancelIcon from '@mui/icons-material/Cancel';
+import ProductSelector, { Product as ProductSelectorProduct } from '../../../components/ProductSelector';
 
 interface ProductsPanelProps {
   teamId: number;
@@ -74,8 +75,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   
   // Form states
-  const [siteId, setSiteId] = useState('');
-  const [productTypeId, setProductTypeId] = useState<number | ''>('');
+  const [selectedProductForAdd, setSelectedProductForAdd] = useState<ProductSelectorProduct | null>(null);
   const [assigneeId, setAssigneeId] = useState<number>(0); // Initialize as a number
   const [checkedOutReason, setCheckedOutReason] = useState('');
   const [reviewComment, setReviewComment] = useState('');
@@ -280,6 +280,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
   // Handle opening the add product dialog
   const handleAddClick = () => {
     if (!isTeamLead) return;
+    setSelectedProductForAdd(null); // Reset selection
     setIsAddDialogOpen(true);
   };
   
@@ -337,20 +338,20 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
   
   // Add product to team
   const handleAddProduct = async () => {
-    if (!siteId || productTypeId === '') return;
+    if (!selectedProductForAdd) return;
     
     setLoading(true);
     try {
       // First add the product type if needed
       await invoke('assign_product_type_to_team', {
         team_id: teamId,
-        product_type_id: productTypeId,
+        product_type_id: selectedProductForAdd.product_type_id,
       });
       
       // Then add the product
       await invoke('assign_product_to_team', {
         team_id: teamId,
-        site_id: siteId,
+        site_id: selectedProductForAdd.site_id,
       });
       
       // Refresh products
@@ -361,8 +362,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
         severity: 'success',
       });
       setIsAddDialogOpen(false);
-      setSiteId('');
-      setProductTypeId('');
+      setSelectedProductForAdd(null);
     } catch (err) {
       console.error('Failed to add product:', err);
       setMessage({
@@ -518,7 +518,7 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
         )}
       </Box>
   
-      <Box sx={{ flexGrow: 1, width: '100%', height: 400 }}>
+      <Box sx={{ flexGrow: 1, width: '100%', minHeight: 400 }}>
         <DataGrid
           rows={products}
           columns={columns}
@@ -530,48 +530,104 @@ const ProductsPanel: React.FC<ProductsPanelProps> = ({ teamId, isTeamLead }) => 
             },
           }}
           disableRowSelectionOnClick
-          autoHeight
-          sx={{ width: '100%', height: '100%' }}
+          sx={{ 
+            width: '100%', 
+            minHeight: 400,
+            '& .MuiDataGrid-main': {
+              minHeight: 400
+            }
+          }}
           slots={{ toolbar: CustomToolbar }}
         />
       </Box>
   
       {/* Add Product Dialog */}
-      <Dialog open={isAddDialogOpen} onClose={() => setIsAddDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={isAddDialogOpen} 
+        onClose={() => {
+          setIsAddDialogOpen(false);
+          setSelectedProductForAdd(null);
+        }} 
+        maxWidth="md" 
+        fullWidth
+      >
         <DialogTitle>Add Product to Team</DialogTitle>
         <DialogContent>
-          <TextField
-            label="Site ID"
-            fullWidth
-            value={siteId}
-            onChange={(e) => setSiteId(e.target.value)}
-            margin="normal"
-          />
-  
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Product Type</InputLabel>
-            <Select
-              value={productTypeId}
-              onChange={(e) => setProductTypeId(e.target.value as number)}
-              label="Product Type"
-            >
-              {productTypes.map((type) => (
-                <MenuItem key={type.id} value={type.id}>
-                  {type.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <DialogContentText>
+            Search and select a product to add to your team. You can search by Site ID, Item ID, or Product Type.
+          </DialogContentText>
+          <Box sx={{ mt: 2 }}>
+            <ProductSelector
+              value={selectedProductForAdd}
+              onChange={setSelectedProductForAdd}
+              excludeTeamId={teamId}
+              placeholder="Search for products to add to your team..."
+              label="Select Product"
+              helperText="Only products not already assigned to this team are shown"
+            />
+          </Box>
+          
+          {selectedProductForAdd && (
+            <Box sx={{ mt: 3, p: 2, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Selected Product Details:
+              </Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
+                <Box>
+                  <Typography variant="body2" color="textSecondary">Site ID</Typography>
+                  <Typography variant="body1"><strong>{selectedProductForAdd.site_id}</strong></Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="textSecondary">Item ID</Typography>
+                  <Typography variant="body1">{selectedProductForAdd.item_id}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="textSecondary">Product Type</Typography>
+                  <Typography variant="body1">{selectedProductForAdd.product_type_name}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="textSecondary">Status</Typography>
+                  <Chip 
+                    label={selectedProductForAdd.status} 
+                    size="small"
+                    color={
+                      selectedProductForAdd.status === 'Completed' ? 'success' : 
+                      selectedProductForAdd.status === 'In Progress' ? 'info' : 
+                      'default'
+                    }
+                  />
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="textSecondary">Classification</Typography>
+                  <Typography variant="body1">{selectedProductForAdd.classification}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="textSecondary">Coordinate System</Typography>
+                  <Typography variant="body1">{selectedProductForAdd.coordinate_system || 'N/A'}</Typography>
+                </Box>
+              </Box>
+              {selectedProductForAdd.notes && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2" color="textSecondary">Notes</Typography>
+                  <Typography variant="body2">{selectedProductForAdd.notes}</Typography>
+                </Box>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => {
+            setIsAddDialogOpen(false);
+            setSelectedProductForAdd(null);
+          }}>Cancel</Button>
           <Button
             onClick={handleAddProduct}
             variant="contained"
             color="primary"
-            disabled={!siteId || productTypeId === '' || loading}
+            disabled={!selectedProductForAdd || loading}
+            startIcon={loading ? <AddIcon /> : undefined}
           >
-            Add
+            {loading ? 'Adding...' : 'Add Product'}
           </Button>
         </DialogActions>
       </Dialog>

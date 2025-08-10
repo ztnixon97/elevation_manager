@@ -4,7 +4,7 @@ use crate::services::api_client::ApiClient;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use std::collections::HashMap;
+use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Settings {
@@ -85,11 +85,11 @@ impl Default for Settings {
 
 /// Tauri command to get user settings
 #[tauri::command]
-pub async fn get_settings(_api_client: State<'_, ApiClient>) -> Result<String, String> {
+pub async fn get_settings(app_handle: AppHandle, _api_client: State<'_, ApiClient>) -> Result<String, String> {
     info!("Fetching user settings...");
     
     // Try to load from local storage first
-    if let Ok(stored_settings) = tauri::api::path::app_local_data_dir() {
+    if let Ok(stored_settings) = app_handle.path().app_data_dir() {
         let settings_path = stored_settings.join("settings.json");
         if let Ok(contents) = std::fs::read_to_string(settings_path) {
             if let Ok(settings) = serde_json::from_str::<Settings>(&contents) {
@@ -111,6 +111,7 @@ pub async fn get_settings(_api_client: State<'_, ApiClient>) -> Result<String, S
 /// Tauri command to save user settings
 #[tauri::command]
 pub async fn save_settings(
+    app_handle: AppHandle,
     _api_client: State<'_, ApiClient>,
     settings: String,
 ) -> Result<(), String> {
@@ -121,7 +122,7 @@ pub async fn save_settings(
         .map_err(|e| format!("Failed to parse settings: {}", e))?;
 
     // Save to local storage
-    if let Ok(app_data_dir) = tauri::api::path::app_local_data_dir() {
+    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
         let settings_path = app_data_dir.join("settings.json");
         
         // Create directory if it doesn't exist
@@ -143,11 +144,11 @@ pub async fn save_settings(
 
 /// Tauri command to reset settings to defaults
 #[tauri::command]
-pub async fn reset_settings(_api_client: State<'_, ApiClient>) -> Result<(), String> {
+pub async fn reset_settings(app_handle: AppHandle, _api_client: State<'_, ApiClient>) -> Result<(), String> {
     info!("Resetting settings to defaults...");
     
     // Delete the settings file if it exists
-    if let Ok(app_data_dir) = tauri::api::path::app_local_data_dir() {
+    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
         let settings_path = app_data_dir.join("settings.json");
         let _ = std::fs::remove_file(settings_path);
     }
@@ -184,11 +185,11 @@ pub async fn get_app_info() -> Result<String, String> {
 
 /// Tauri command to export settings
 #[tauri::command]
-pub async fn export_settings(_api_client: State<'_, ApiClient>) -> Result<String, String> {
+pub async fn export_settings(app_handle: AppHandle, _api_client: State<'_, ApiClient>) -> Result<String, String> {
     info!("Exporting settings...");
     
     // Get current settings
-    let settings = get_settings(_api_client).await?;
+    let settings = get_settings(app_handle.clone(), _api_client).await?;
     
     // Add export metadata
     let export_data = serde_json::json!({
@@ -204,6 +205,7 @@ pub async fn export_settings(_api_client: State<'_, ApiClient>) -> Result<String
 /// Tauri command to import settings
 #[tauri::command]
 pub async fn import_settings(
+    app_handle: AppHandle,
     _api_client: State<'_, ApiClient>,
     settings_data: String,
 ) -> Result<(), String> {
@@ -227,18 +229,18 @@ pub async fn import_settings(
         .map_err(|e| format!("Failed to serialize imported settings: {}", e))?;
 
     // Save the imported settings
-    save_settings(_api_client, settings_string).await?;
+    save_settings(app_handle, _api_client, settings_string).await?;
 
     Ok(())
 }
 
 /// Tauri command to apply font size setting
 #[tauri::command]
-pub async fn apply_font_size(font_size: i32) -> Result<(), String> {
-    info!("Applying font size: {}", font_size);
+pub async fn apply_font_size(fontSize: i32) -> Result<(), String> {
+    info!("Applying font size: {}", fontSize);
     
     // Validate font size range
-    if font_size < 10 || font_size > 24 {
+    if fontSize < 10 || fontSize > 24 {
         return Err("Font size must be between 10 and 24".to_string());
     }
     
@@ -274,11 +276,11 @@ pub async fn update_notification_polling(interval: i32) -> Result<(), String> {
 
 /// Tauri command to clear application cache
 #[tauri::command]
-pub async fn clear_application_cache() -> Result<(), String> {
+pub async fn clear_application_cache(app_handle: AppHandle) -> Result<(), String> {
     info!("Clearing application cache...");
     
     // Clear various cache directories
-    if let Ok(app_data_dir) = tauri::api::path::app_local_data_dir() {
+    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
         let cache_dir = app_data_dir.join("cache");
         let _ = std::fs::remove_dir_all(cache_dir);
     }

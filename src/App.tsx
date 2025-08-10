@@ -11,17 +11,17 @@ import Dashboard from "./pages/Dashboard";
 import TeamsPage from "./pages/TeamsPage";
 import Sidebar from "./components/Sidebar";
 import UserTeamPage from "./pages/UserTeamPage/UserTeamPage";
-import { useContext, useEffect } from "react";
+import { useContext } from "react";
 import { Box } from "@mui/material";
 import TeamManagement from "./pages/TeamPage/TeamManagement";
 import UserManagement from "./pages/UserManagement";
 import { GraphQLPlayground } from "./pages/GraphQLPlayground";
 import NotificationsPage from "./pages/NotificationsPage";
-import { invoke } from "@tauri-apps/api/core";
 import TeamDashboard from "./pages/TeamDashboard/TeamDashboard";
 import ReviewsPage from "./pages/ReviewsPage";
 import ProductsPage from "./pages/ProductsPage/ProductsPage";
 import ProductDetailsPage from "./pages/ProductDetailsPage.tsx";
+import ProductCreatePage from "./pages/ProductCreatePage";
 import CreateReviewPage from "./pages/CreraateReviewPage.tsx";
 import ReviewEditor from './components/ReviewEditor';
 import ContractsPage from "./pages/ContractsPage.tsx";
@@ -32,6 +32,7 @@ import TaskOrderCreatePage from "./pages/TaskOrderCreatePage.tsx";
 import TaskOrdersListPage from "./pages/TaskOrdersListPage.tsx";
 import ProfilePage from "./pages/ProfilePage.tsx";
 import SettingsPage from "./pages/SettingsPage.tsx";
+import QGISIntegration from "./pages/QGISIntegration.tsx";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -77,6 +78,7 @@ function AppLayout() {
           <Route path="/teams/:teamId" element={isAuthenticated ? <TeamDashboard /> : <Login />} />
           <Route path="/reviews" element={isAuthenticated ? <ReviewsPage /> : <Login />} />
           <Route path="/products" element={isAuthenticated ? <ProductsPage /> : <Login /> } />
+          <Route path="/products/create" element={isAuthenticated ? <ProductCreatePage /> : <Login />} />
           <Route path="/products/:productId" element= {<ProductDetailsPage /> } />
           <Route path="/reviews/create/:productId" element={<CreateReviewPage />} />
           <Route path="/reviews/:reviewId" element={<ReviewEditor />} />
@@ -88,6 +90,7 @@ function AppLayout() {
           <Route path = "/task-orders/create" element={isAuthenticated ? <TaskOrderCreatePage /> : <Login />} />
           <Route path = "/profile" element={isAuthenticated ? <ProfilePage /> : <Login />} />
           <Route path = "/settings" element={isAuthenticated ? <SettingsPage /> : <Login />} />
+          <Route path = "/qgis" element={isAuthenticated ? <QGISIntegration /> : <Login />} />
           {/* Add more routes here */}
           {/* Redirect to login if not authenticated */}
         </Routes>

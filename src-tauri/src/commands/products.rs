@@ -1,5 +1,5 @@
 use crate::services::api_client::ApiClient;
-use log::{debug, error, info};
+use log::info;
 use tauri::State;
 use serde_json::json;
 
@@ -91,4 +91,92 @@ pub async fn get_product_assignments(
 ) -> Result<String, String> {
     info!("Fetching assignments for product {product_id}...");
     api_client.get(&format!("/products/{}/assignments", product_id)).await
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn update_product(
+    api_client: State<'_, ApiClient>,
+    product_id: i32,
+    site_id: Option<String>,
+    item_id: Option<String>,
+    status: Option<String>,
+    classification: Option<String>,
+    product_type_id: Option<i32>,
+    taskorder_id: Option<i32>,
+) -> Result<String, String> {
+    info!("Updating product {product_id}...");
+    let update_payload = json!({
+        "site_id": site_id,
+        "item_id": item_id,
+        "status": status,
+        "classification": classification,
+        "product_type_id": product_type_id,
+        "taskorder_id": taskorder_id,
+    });
+    api_client.patch(&format!("/products/{}", product_id), &update_payload).await
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn update_product_status(
+    api_client: State<'_, ApiClient>,
+    product_id: i32,
+    status: String,
+) -> Result<String, String> {
+    info!("Updating product {product_id} status to {status}...");
+    let payload = json!({
+        "status": status,
+    });
+    api_client.patch(&format!("/products/{}", product_id), &payload).await
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn create_product(
+    api_client: State<'_, ApiClient>,
+    item_id: String,
+    site_id: String,
+    product_type_id: i32,
+    status: String,
+    status_date: Option<String>,
+    taskorder_id: Option<i32>,
+    file_path: Option<String>,
+    s2_index: Option<String>,
+    classification: Option<String>,
+    geometry: Option<serde_json::Value>,
+    coordinate_system: Option<String>,
+    srid: Option<i32>,
+) -> Result<String, String> {
+    info!("Creating product {site_id}/{item_id}...");
+    // Map frontend geometry -> backend geom and pass through other fields.
+    let payload = json!({
+        "taskorder_id": taskorder_id,
+        "item_id": item_id,
+        "site_id": site_id,
+        "product_type_id": product_type_id,
+        "status": status,
+        "status_date": status_date,
+        "acceptance_date": null,
+        "publish_date": null,
+        "file_path": file_path,
+        "s2_index": s2_index,
+        "geom": geometry,
+        "classification": classification,
+        // optional SRID hint; coordinate_system is accepted but SRID is what backend can apply
+        "srid": srid,
+        "coordinate_system": coordinate_system,
+    });
+    api_client.post("/products", &payload).await
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn create_product_type(
+    api_client: State<'_, ApiClient>,
+    name: String,
+    acronym: String,
+) -> Result<String, String> {
+    info!("Creating product type {name} ({acronym})...");
+    let payload = json!({
+        "name": name,
+        "acronym": acronym,
+    });
+    api_client.post("/product_types", &payload).await
 }
