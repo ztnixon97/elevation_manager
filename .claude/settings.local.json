@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(sqlx migrate:*)",
+      "Bash(psql:*)",
+      "Bash(cargo build:*)",
+      "Bash(./target/release/backend)",
+      "Bash(pnpm dev:*)",
+      "Bash(pnpm run:*)",
+      "Bash(pnpm build:*)",
+      "Bash(cargo tauri:*)",
+      "Bash(cargo run:*)",
+      "Bash(ls:*)",
+      "Bash(cargo check:*)",
+      "Bash(./target/release/backend.exe)",
+      "Bash(grep:*)",
+      "Bash(taskkill:*)",
+      "Bash(curl:*)",
+      "Bash(rm:*)",
+      "Bash(npm run build:*)",
+      "Bash(tasklist)",
+      "Bash(npx tsc:*)",
+      "Bash(rg:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(find:*)",
+      "Bash(npm run dev:*)",
+      "Bash(touch:*)",
+      "Bash(git restore:*)",
+      "Bash(git pull:*)"
+    ],
+    "deny": []
+  }
+}
