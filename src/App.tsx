@@ -6,6 +6,8 @@ import { AuthProvider, AuthContext } from "./context/AuthContext";
 import { ThemeProviderWrapper } from "./context/ThemeContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { SettingsProvider } from "./context/SettingsContext";
+import { AppProvider } from "./contexts/AppContext";
+import NotificationBar from "./components/notifications/NotificationBar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import TeamsPage from "./pages/TeamsPage";
@@ -65,6 +67,8 @@ function AppLayout() {
           transition: "padding-left 0.s ease-in-out",
         }}
       >
+        {/* Global notification bar */}
+        <NotificationBar />
         <Routes>
           {/* ✅ Redirect to /dashboard if authenticated */}
           <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
@@ -108,7 +112,9 @@ export default function App() {
           <AuthProvider>
             <SettingsProvider>
               <NotificationProvider>
-                <AppLayout />
+                <AppProvider>
+                  <AppLayout />
+                </AppProvider>
               </NotificationProvider>
             </SettingsProvider>
           </AuthProvider>
